@@ -43,7 +43,11 @@ Use this canonical JSON as the Noise prologue (keys sorted):
  responder:{endpoint_id,role,identity_key,noise_public_key}}
 ```
 
-Each handshake payload includes an SSHSIG envelope in namespace `wallaby-wallet-peer-handshake-v1` over the prologue hash and both participant identities/roles. Validate the issuer/subject role grant against local pairing state, both Ed25519 proofs, both Noise static keys and the exact transcript. Never import a pairing grant from the relay directory. This applies equally to Agent–Agent and Mobile–Agent. No Mobile–Mobile channel is supported in this release. Mobile must not be accepted as a multisig producing Agent or a private-wallet sync recipient under an Agent-only grant.
+Each handshake payload includes an SSHSIG envelope in namespace `wallaby-wallet-peer-handshake-v1` over the prologue hash and both participant identities/roles. Validate the issuer/subject role grant against local pairing state, both Ed25519 proofs, both Noise static keys and the exact transcript. Never import a pairing grant from the relay directory. This applies equally to Agent–Agent and Mobile–Agent. Mobile–Mobile channels are permitted with independent local Mobile-role grants; see [DIRECT_PEERS.md](DIRECT_PEERS.md). Mobile must not be accepted as a multisig producing Agent or a private-wallet sync recipient under an Agent-only grant.
+
+## Direct connections
+
+Prefer direct SSH for bulk data after encrypted rendezvous. [DIRECT_PEERS.md](DIRECT_PEERS.md) specifies key-only bootstrap, reachable role selection, 24-hour credentials, IP changes, path reports and bounded fallback. Existing peer transport bindings identify the secure logical channel, not the physical route of file bytes.
 
 ## Server endpoints
 
@@ -53,6 +57,8 @@ Mobile: authenticated `POST /mobile/v1/relay`, paired device Bearer token, `X-Wa
 
 Actions:
 
+* `{action:"policy"}` → direct transport policy and bounded relay limits.
+* `{action:"path",proof:ENVELOPE}` → optional signed direct/relay path status; see DIRECT_PEERS.md.
 * `{action:"challenge"}` → fresh 45-second nonce bound to this exact connection and role.
 * `{action:"register",proof:ENVELOPE}` → signed identity registration.
 * `{action:"directory"}` → public registrations, including original signed proofs. These are **untrusted discovery**, not pairing authority.
@@ -86,7 +92,7 @@ Frame schema (no extra fields):
  sequence:integer_0_to_2^53_minus_1,kind:"handshake"|"transport",ciphertext:standard_padded_base64}
 ```
 
-Handshake bytes are Noise protocol messages; transport bytes are Noise ciphertext. Max decoded size 49,152 bytes. Fragment large wallet archives inside the encrypted application protocol, with authenticated whole-file digest, total size, chunk index/count, transfer ID and expiry; verify everything before committing a wallet locally. Never stream a partially authenticated file into Core. Receiver reassembles in its protected workspace. Sender retransmits the same frame bytes/ID after an ambiguous response. An ID reused with different bytes is rejected. Queue lifetime is 30 minutes; restart/profile replacement loses relay buffers, **not wallets, workflow records or pairings on the clients**. Re-handshake and resume at an application-acknowledged offset. Bounds: 128 queued frames per recipient, 1,024 live frames plus receipt tombstones overall, 120 newly queued frames/minute/sender. No ciphertext contents are logged or included in Dashboard profile exports.
+Handshake bytes are Noise protocol messages; transport bytes are Noise ciphertext. Max decoded size 49,152 bytes. Fragment large wallet archives inside the encrypted application protocol, with authenticated whole-file digest, total size, chunk index/count, transfer ID and expiry; verify everything before committing a wallet locally. Never stream a partially authenticated file into Core. Receiver reassembles in its protected workspace. Sender retransmits the same frame bytes/ID after an ambiguous response. An ID reused with different bytes is rejected. Queue lifetime is 30 minutes; restart/profile replacement loses relay buffers, **not wallets, workflow records or pairings on the clients**. Re-handshake and resume at an application-acknowledged offset. Bounds: 128 queued frames per recipient, 1,024 live frames plus receipt tombstones overall, 120 newly queued frames/minute/sender, 2 MiB ciphertext/minute/sender, 600 requests/minute/identity and 6,000 requests/minute globally. No ciphertext contents are logged or included in Dashboard profile exports.
 
 Noise encrypts application records containing the full outer header again, plus protocol, authenticated role, operation ID/hash, payload type, expiry and body. After decryption compare every repeated header to the outer header, the pinned peer and local channel. Enforce contiguous per-direction transport counters; drop/reconnect on reordering rather than accepting an unauthenticated frame. Reject repeated counters, old channel IDs and changed operation digests. Outer Server headers are never trusted as application facts. Enforce resource/chunk limits locally too. Rekey with a fresh Noise handshake well before counter exhaustion. Never share a PSK between distinct pairings or reuse a channel ID on a new handshake.
 

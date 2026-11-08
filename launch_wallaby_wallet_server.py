@@ -423,19 +423,21 @@ class Sessions:
             session=Session(self.root,self.preferences_path);session.diagnostic_log=self.nodes.diagnostic_log;session.rpc_broker=self.nodes.rpc;session.node_registry=self.nodes;session.node_load_lock=self.node_load_lock;session.profile_gate=self.profile_gate;session.last_seen=time.monotonic();self.sessions[session.token]=session;return session
     def rotate(self,session):
         with self.lock:
-            self.sessions.pop(session.token,None);session.token=secrets.token_urlsafe(32);self.sessions[session.token]=session
+            old=session.token;self.sessions.pop(old,None);session.token=secrets.token_urlsafe(32);self.sessions[session.token]=session;self.auth.rotate_login(old,session.token)
             return session.token
     def get(self,token):
         with self.lock:
             session=self.sessions.get(token or '')
-            if session:session.last_seen=time.monotonic()
+            if session:
+                if getattr(session,'password_authenticated',False) and session.user_id and not self.auth.touch_login(session.token):session.select_user(None)
+                session.last_seen=time.monotonic()
             return session
     def close(self,token):
         with self.lock:
             session=self.sessions.pop(token,None)
             if session and session.user_id:
                 self.user_activity[session.user_id]=max(self.user_activity.get(session.user_id,0),session.presence_activity)
-        if session:session.close()
+        if session:self.auth.release_login(token);session.close()
     def expire(self):
         now=time.monotonic()
         with self.lock:
@@ -773,7 +775,7 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                     if path=='/api/auth/register':return self.json(sessions.auth.registration(session.token,data))
                     if path=='/api/auth/finish':
                         uid=sessions.auth.finish(session.token,data)
-                        result=session.select_user(uid);result['session_token']=sessions.rotate(session)
+                        result=session.select_user(uid);session.password_authenticated=True;result['session_token']=sessions.rotate(session)
                         return self.json(result)
                     raise ValueError('Unknown authentication endpoint.')
                 if path.startswith('/api/mobile/'):
@@ -932,7 +934,9 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                     if not session.user():raise ValueError('Select a family user first.')
                     return self.json(WorkflowStore(session.preferences_path).send_message(session.user_id,data.get('user_id'),data.get('text')))
                 if path=='/api/login':raise ValueError('Use password authentication to log in.')
-                if path=='/api/logout':return self.json(session.select_user(None))
+                if path=='/api/logout':
+                    sessions.auth.release_login(session.token)
+                    return self.json(session.select_user(None))
                 if path=='/api/users/save':
                     store.save_user(data.get('name',''),data.get('colour','green'),data.get('id'),data.get('revision'),gender=data.get('gender'),date_of_birth=__import__('preferences').validate_birth_date(data.get('date_of_birth')));return self.json(session.family())
                 if path in ('/api/users/delete','/api/config/reset'):

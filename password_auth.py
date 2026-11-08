@@ -11,15 +11,18 @@ from preferences import FamilyStore
 
 SUITE='opaque-serenity-1.1.0-argon2id-m65536-t3-p1'
 LIMIT=128
+OPAQUE_SLOTS=threading.BoundedSemaphore(2)
 
 def opaque(action,params=None):
     binary=os.environ.get('WALLABY_NODE') or shutil.which('node') or shutil.which('nodejs')
     if not binary:raise ValueError('Password login requires Node.js. Install the updated Wallet Server package.')
+    if not OPAQUE_SLOTS.acquire(blocking=False):raise ValueError('Password service is busy. Please try again shortly.')
     try:
         p=subprocess.run([binary,str(Path(__file__).parent/'vendor/opaque/worker.cjs')],input=json.dumps({'action':action,'params':params}),text=True,capture_output=True,timeout=15,check=True)
         if len(p.stdout)>32768:raise ValueError()
         return json.loads(p.stdout)
     except (subprocess.SubprocessError,ValueError,OSError):raise ValueError('Password authentication failed. Please try again.') from None
+    finally:OPAQUE_SLOTS.release()
 
 def wire(value):
     if not isinstance(value,str) or not 8<=len(value)<=4096 or not re.fullmatch(r'[A-Za-z0-9_+/=-]+',value):raise ValueError('Invalid OPAQUE protocol message.')
@@ -45,9 +48,29 @@ def auth_lock(path):
 
 class PasswordAuth:
     def __init__(self,config):
-        self.config=Path(config);self.path=data_directory(config)/'password-auth.json';self.lock=threading.RLock();self.pending={};self.rates={}
+        self.config=Path(config);self.path=data_directory(config)/'password-auth.json';self.lock=threading.RLock();self.pending={};self.rates={};self.logins={}
     def reset(self):
-        with self.lock:self.pending.clear();self.rates.clear()
+        with self.lock:self.pending.clear();self.rates.clear();self.logins.clear()
+    def release_login(self,scope):
+        with self.lock:self.logins.pop(scope,None)
+    def touch_login(self,scope,seconds=86400):
+        with self.lock:
+            row=self.logins.get(scope);now=time.monotonic()
+            if not row or row['expires']<=now:
+                self.logins.pop(scope,None);return False
+            row['expires']=now+max(0,min(seconds,86400));return True
+    def rotate_login(self,old,new):
+        with self.lock:
+            row=self.logins.pop(old,None)
+            if row:self.logins[new]=row
+    def admit_login(self,scope,uid):
+        # Called only after OPAQUE verification, under the same reentrant lock.
+        with self.lock:
+            now=time.monotonic();self.logins={k:v for k,v in self.logins.items() if v['expires']>now}
+            users={v['uid'] for v in self.logins.values()}
+            if uid not in users and len(users)>=10:raise ValueError('Ten users are already logged in. Log out an unused account and try again.')
+            if scope not in self.logins and len(self.logins)>=64:raise ValueError('All account sessions are in use. Log out an unused device and try again.')
+            self.logins[scope]={'uid':uid,'expires':now+(900 if scope.startswith('mobile:') else 86400)}
     def read(self):
         return validate(json.loads(self.path.read_text())) if self.path.exists() else None
     def save(self,data):
@@ -107,6 +130,7 @@ class PasswordAuth:
             if not state or state['server_id']!=pending['server_id'] or not FamilyStore(self.config).user(uid):raise ValueError('Profile changed. Start login again.')
             if pending['mode']=='login' and state['users'].get(uid,{}).get('record')!=pending['record']:raise ValueError('Password changed. Log in again.')
             opaque('finish',{'serverLoginState':pending['state'],'finishLoginRequest':data['request'],'identifiers':{'client':uid,'server':state['server_id']}})
+            self.admit_login(scope,uid)
             if pending['mode']=='enroll':
                 if uid in state['users']:raise ValueError('This account already has a password. Log in instead.')
                 state['users'][uid]={'record':pending['record'],'suite':SUITE};self.save(state)
@@ -114,6 +138,7 @@ class PasswordAuth:
 
     def prune_users(self,users):
         with self.lock,auth_lock(self.path):
+            self.logins={k:v for k,v in self.logins.items() if v['uid'] in users}
             state=self.read()
             if state and set(state['users'])-set(users):
                 state['users']={k:v for k,v in state['users'].items() if k in users};self.save(state)

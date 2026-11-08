@@ -59,9 +59,13 @@ class MobileDevices:
             if result['expires']<=now:self.results.pop(ident,None)
         for rows in (self.invites,self.pending,self.challenges,self.sessions):
             for key,row in list(rows.items()):
-                if row['expires']<=now:rows.pop(key,None)
+                if row['expires']<=now:
+                    if rows is self.sessions and hasattr(self,'auth'):self.auth.release_login('mobile:'+key)
+                    rows.pop(key,None)
     def reset(self):
         with self.lock:
+            if hasattr(self,'auth'):
+                for token in self.sessions:self.auth.release_login('mobile:'+token)
             self.invites.clear();self.pending.clear();self.challenges.clear();self.sessions.clear();self.results.clear()
     def has_clients(self):
         with self.lock:
@@ -115,6 +119,8 @@ class MobileDevices:
             if relay is not None:
                 with relay.lock:
                     endpoint=__import__('secure_relay').endpoint_id('mobile',row['public_key']);relay.invalidate(endpoint);relay.endpoints.pop(endpoint,None)
+            for token,row in self.sessions.items():
+                if row['device_id']==ident and hasattr(self,'auth'):self.auth.release_login('mobile:'+token)
             self.sessions={k:v for k,v in self.sessions.items() if v['device_id']!=ident};self.challenges={k:v for k,v in self.challenges.items() if v['device_id']!=ident}
             return {'revoked':True}
     def challenge(self,ident):
@@ -131,6 +137,8 @@ class MobileDevices:
             if not pending or not device or device['revoked'] or pending['device_id']!=m.get('device_id'):raise ValueError('Connection challenge expired or is invalid.')
             expected={'protocol':PROTOCOL,'version':1,'purpose':'connect','server_id':state['server_id'],'device_id':m['device_id'],'challenge':m['challenge']}
             if verify(self.config,proof,device['public_key'],CONNECT_NAMESPACE)!=expected:raise ValueError('Invalid mobile connection proof.')
+            for old,row in self.sessions.items():
+                if row['device_id']==m['device_id'] and hasattr(self,'auth'):self.auth.release_login('mobile:'+old)
             self.challenges.pop(m['challenge']);token=secrets.token_urlsafe(32);self.sessions={k:v for k,v in self.sessions.items() if v['device_id']!=m['device_id']}
             self.sessions[token]={'device_id':m['device_id'],'user_id':device['user_id'],'seen':time.time(),'expires':time.time()+900,'challenge':secrets.token_hex(32)}
             return {'token':token,'expires_utc':utc(time.time()+900),'scope':'relay-and-account-read'}
@@ -140,10 +148,18 @@ class MobileDevices:
         device=self.state()['devices'].get(session['device_id'])
         from preferences import FamilyStore
         if not device or device['revoked'] or device['user_id'] not in {u['id'] for u in FamilyStore(self.config).snapshot()['users']}:raise ValueError('Mobile access was revoked.')
-        session['seen']=time.time();return session,device
+        session['seen']=time.time()
+        if hasattr(self,'auth'):
+            if session.get('account_authenticated_until',0)>time.time():self.auth.touch_login('mobile:'+token,min(session['expires'],session['account_authenticated_until'])-time.time())
+            else:self.auth.release_login('mobile:'+token)
+        return session,device
     def authenticate(self,token,action,data):
         with self.lock:
             session,device=self.client(token);uid=session['user_id'];scope='mobile:'+token
+            if action=='logout':
+                if data:raise ValueError('Unexpected logout fields.')
+                self.auth.release_login(scope);session.pop('account_authenticated_until',None)
+                return {'authenticated':False}
             if action=='info':
                 if data:raise ValueError('Unexpected mobile authentication fields.')
                 from preferences import FamilyStore

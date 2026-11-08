@@ -246,3 +246,5 @@ New requests always contain receiving_address from the validated saved receiving
 The Address Book’s proposed destination includes comparison_samples: three independently derived Receiving and Change entries starting at that same index, bounded at 999. These are explicitly comparison samples, not a commitment to the actual change index of a future transaction. Index-zero disc-loading samples remain separately labelled.
 
 Agent result policy_hash remains the descriptor-pair/timestamp transition hash. Receipt, result request_hash, and cancellation hashes bind the complete proposal including receiving_address. No new capability identifier or policy extension schema is introduced.
+
+Build 3 direct-SSH rendezvous, rotating key-only credentials, Mobile peer support and path attestation: [docs/DIRECT_PEERS.md](docs/DIRECT_PEERS.md). No Agent code is included in this Server release.
