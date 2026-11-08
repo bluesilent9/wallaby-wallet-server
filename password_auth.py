@@ -86,7 +86,7 @@ class PasswordAuth:
         if not FamilyStore(self.config).user(uid):raise ValueError('Unknown user.')
         with self.lock:
             state=self.read()
-            return {'registration_required':not state or uid not in state['users'],'suite':SUITE,'key_stretching':{'argon2id-custom':{'iterations':3,'memory':65536,'parallelism':1}},'client_identity':uid,'server_identity':state['server_id'] if state else None}
+            return {'password_policy':{'min_length':8,'max_length':1024,'required_digit':True,'required_special':True,'digit_definition':'ASCII 0-9','special_definition':'Unicode punctuation or symbol; whitespace excluded'},'registration_required':not state or uid not in state['users'],'suite':SUITE,'key_stretching':{'argon2id-custom':{'iterations':3,'memory':65536,'parallelism':1}},'client_identity':uid,'server_identity':state['server_id'] if state else None}
     def prune(self):
         now=time.monotonic();self.pending={k:v for k,v in self.pending.items() if v['expires']>now};self.rates={k:v for k,v in self.rates.items() if v[1]>now}
     def throttle(self,uid,scope):
