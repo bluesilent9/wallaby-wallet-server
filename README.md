@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.svg" width="112" alt="Wallaby Wallet — Wallaby and Bitcoin"></p>
+
 # Wallaby Wallet Server
 
 The Bitcoin-focused successor to Wallaby Dashboard. The interface is branded **Wallaby Wallet**.
