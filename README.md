@@ -32,7 +32,7 @@ See [installation and migration](docs/CLEAN_INSTALL.md), [mobile/Agent integrati
 
 ## Repository and project boundaries
 
-`Development` contains this build. `Stable` contains release information until a Stable version is explicitly approved. The earlier [Dashboard repository](https://github.com/bluesilent9/wallaby-dashboard) remains historical; it has not been deleted. Mobile and Agent repositories are separate projects. This repository does not implement firewall management, email hosting or other general server-management features.
+`Development` contains this build. `Stable` contains release information until a Stable version is explicitly approved. Wallaby Wallet Server replaces the former Dashboard project. The retired Dashboard Git history is preserved in a local archive; current source and downloads are maintained here. Mobile and Agent repositories are separate projects. This repository does not implement firewall management, email hosting or other general server-management features.
 
 Licensed under AGPL-3.0; see [LICENSE.txt](LICENSE.txt). Bundled components retain their own notices. QR generation uses Project Nayuki's MIT-licensed library.
 
