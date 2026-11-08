@@ -7,6 +7,6 @@ The Bitcoin-focused successor to Wallaby Dashboard. The interface is branded **W
 - [Development source and installer](https://github.com/bluesilent9/wallaby-wallet-server/tree/Development)
 - [Wallaby Wallet — shared product landing page](https://bluesilent9.github.io/wallaby-suite/wallet/)
 - [Wallaby Suite](https://bluesilent9.github.io/wallaby-suite/)
-- [Previous Dashboard repository and history](https://github.com/bluesilent9/wallaby-dashboard)
+- The former Dashboard repository is retired; its Git history is preserved in a local archive.
 
 Server and future Mobile editions share the Wallaby Wallet landing page. The Android implementation and Agent changes are separate projects.
