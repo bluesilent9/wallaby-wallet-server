@@ -3,7 +3,7 @@
 from pathlib import Path
 import ast,hashlib,shutil,subprocess,sys
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='1.0.0~dev1'
+VERSION='1.0.0~dev2'
 CONTROL=f'''Package: wallaby-wallet-server
 Version: {VERSION}
 Section: utils
@@ -12,7 +12,7 @@ Architecture: all
 Conflicts: wallaby-dashboard
 Replaces: wallaby-dashboard
 Maintainer: Wallaby Suite <347047153+bluesilent9@users.noreply.github.com>
-Depends: python3 (>= 3.11), python3-pypdf, python3-odf, tzdata, adduser, systemd, 7zip, openssh-client
+Depends: python3 (>= 3.11), python3-pypdf, python3-odf, tzdata, adduser, systemd, 7zip, openssh-client, nodejs (>= 18)
 Description: Wallaby Wallet Server
  Bitcoin tools, wallet insights, family workflows and Australian CGT reports.
  Loopback web and Agent interfaces are reached through authorised SSH tunnels.

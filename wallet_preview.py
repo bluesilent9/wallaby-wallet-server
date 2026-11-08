@@ -32,13 +32,19 @@ def validate(payload,now=None,fresh=True):
     if not isinstance(payload,dict) or set(payload)!={'preview','public_key','signature'}:raise ValueError('Invalid signed wallet preview envelope.')
     p=payload['preview'];fields={'version','transfer_id','challenge','sender_ipv6','receiver_ipv6','public_wallet','chain','funded_outputs','node_tip','generated_at'}
     fields|={'vaults','address_labels'}
+    if isinstance(p,dict) and p.get('version')==3:fields.add('transport')
     if isinstance(p,dict) and 'restoration' in p:
         fields.add('restoration');validate_restoration(p['restoration'],p['public_wallet'])
-    if not isinstance(p,dict) or set(p)!=fields or type(p['version']) is not int or p['version']!=2 or p['chain']!='main':raise ValueError('Invalid mainnet wallet preview.')
+    if not isinstance(p,dict) or set(p)!=fields or type(p['version']) is not int or p['version'] not in (2,3) or p['chain']!='main':raise ValueError('Invalid mainnet wallet preview.')
     for key in ('transfer_id','challenge'):
         if not isinstance(p[key],str) or not HEX.fullmatch(p[key]):raise ValueError('Invalid preview identity or challenge.')
-    ipv6(p['sender_ipv6']);ipv6(p['receiver_ipv6']);policies(p['public_wallet'],allow_addresses=p['version']==2)
-    if p['version']==2:
+    if p['version']==2:ipv6(p['sender_ipv6']);ipv6(p['receiver_ipv6'])
+    else:
+        from relay_bindings import validate_transport
+        validate_transport(p['transport'])
+        if p['sender_ipv6'] is not None or p['receiver_ipv6'] is not None:raise ValueError('Relay previews do not use IP addresses as peer identities.')
+    policies(p['public_wallet'],allow_addresses=True)
+    if p['version'] in (2,3):
         from vault_records import public_vault
         rows=p['address_labels'];seen_labels=set()
         if not isinstance(rows,list) or len(rows)>10000:raise ValueError('Invalid address labels.')

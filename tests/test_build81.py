@@ -17,7 +17,10 @@ def released_caps():
 
 class ReleasedAgentExchange(unittest.TestCase):
  def setUp(self):
-  self.f=fixture.GroupedApproval();self.f.setUp();self.addCleanup(self.f.doCleanups);self.f.begin();self.hub=self.f.hub;self.hub.refresh_inventory=lambda *a,**k:None
+  self.f=fixture.GroupedApproval();self.f.setUp();self.addCleanup(self.f.doCleanups);self.f.begin();self.hub=self.f.hub;
+  from relay_fixtures import persisted_refresh_v1
+  persisted_refresh_v1(self.f)
+  self.hub.refresh_inventory=lambda *a,**k:None
  def exchange(self,node,items=(),caps=None):
   token=next(c['token'] for c in self.f.f.f.registry.connections.values() if c['node_id']==node)
   return self.hub.exchange(token,{'version':1,'outbox':list(items),'known_vaults':[],'capabilities':released_caps() if caps is None else caps})

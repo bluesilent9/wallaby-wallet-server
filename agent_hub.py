@@ -15,7 +15,7 @@ from agent_rpc import PRIVATE
 
 from builder_workspace import serialised,BuilderWorkspace
 
-CAPS={'wallet_mobile_verification_v1','wallet_policy_refresh_cancel_v1','wallet_policy_refresh_batch_v1','wallet_archive_cancel_v1','wallet_rename_v1','archive_inventory_v1','wallet_archive_queue_v1','wallet_policy_refresh_v1','builder_cancellation_v1','node_identity','partial_signing','broadcast','automatic_broadcast_v1','wallet_transfer','wallet_retirement_v3','wallet_retirement_cancel_v1'}
+CAPS={'wallet_policy_refresh_relay_v1','wallet_relay_v1','wallet_mobile_verification_v1','wallet_policy_refresh_cancel_v1','wallet_policy_refresh_batch_v1','wallet_archive_cancel_v1','wallet_rename_v1','archive_inventory_v1','wallet_archive_queue_v1','wallet_policy_refresh_v1','builder_cancellation_v1','node_identity','partial_signing','broadcast','automatic_broadcast_v1','wallet_transfer','wallet_retirement_v3','wallet_retirement_cancel_v1'}
 def digest(value):return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()).hexdigest()
 def canonical(value):
     raw=json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False)
@@ -42,7 +42,10 @@ class AgentHub:
         self.permissions=Permissions(self)
         from disc_signers import DiscSigners
         self.disc_signers=DiscSigners(self)
+        from secure_relay import SecureRelay
+        self.relay=SecureRelay(self.config,self)
     def reset_live(self):
+        self.relay.reset()
         self.disc_signers.close()
         from disc_signers import DiscSigners
         self.disc_signers=DiscSigners(self)
@@ -421,11 +424,14 @@ class AgentHub:
         return {'version':1,'accepted':accepted,'proposals':selected}
     def transfer_proposal(self,state,row):
         peer=row['peer_id'];record=next((c for c in self.registry.connections.values() if c['node_id']==peer),{})
-        proposal={'kind':'wallet_transfer','direction':row['direction'],'transfer_id':row['transfer_id'],'peer':{'node_id':peer,'hostname':record.get('hostname',''),'ipv6':state['nodes'][peer]['ipv6']},'public_wallet':row['public_wallet'],'source_has_private_keys':row['source_has_private_keys'],'earliest_timestamp':row['earliest_timestamp'],'requires_blockchain_redownload':row['requires_blockchain_redownload'],'preview_challenge':row['challenge'],'node_ipv6':state['nodes'][row['node_id']]['ipv6']}
+        proposal={'kind':'wallet_transfer','direction':row['direction'],'transfer_id':row['transfer_id'],'peer':{'node_id':peer,'hostname':record.get('hostname',''),'ipv6':state['nodes'][peer].get('ipv6')},'public_wallet':row['public_wallet'],'source_has_private_keys':row['source_has_private_keys'],'earliest_timestamp':row['earliest_timestamp'],'requires_blockchain_redownload':row['requires_blockchain_redownload'],'preview_challenge':row['challenge'],'node_ipv6':state['nodes'][row['node_id']].get('ipv6')}
         proposal['transfer_version']=2
         if row.get('lifecycle_restore'):
             from wallet_preview import restoration_binding
             proposal['restoration']=restoration_binding(row['public_wallet'])
+        source=row['node_id'] if row['direction']=='send' else row['peer_id']
+        target=row['peer_id'] if row['direction']=='send' else row['node_id']
+        proposal['transfer_version']=3;proposal['transport']=self.relay.binding(source,target);proposal['node_ipv6']=None;proposal['peer']['ipv6']=None
         return proposal
     def sync_warnings(self):
         from wallet_sync_queue import warnings

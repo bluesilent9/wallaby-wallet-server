@@ -1,3 +1,5 @@
+> Build 2 adds persistent peer pairing, encrypted relay, OPAQUE login and account reads. See [secure relay](SECURE_RELAY.md), [password login](PASSWORD_AUTH.md) and [mobile data](MOBILE_DATA.md). The verification-only access descriptions below describe Build 1 and are superseded where the Build 2 contract explicitly changes them.
+
 # Wallaby Wallet verification protocol v1
 
 This document is the implementation handoff for the separate Wallaby Agent and Android chats. Wallet Server V1 Build 1 implements the server stage only. Existing Agents continue using their established signed protocols; no old signed request is rewritten. The display brand is Wallaby Wallet; the server product is Wallaby Wallet Server.

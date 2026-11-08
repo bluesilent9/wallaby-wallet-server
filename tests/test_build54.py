@@ -29,14 +29,17 @@ class Responsiveness(fixtures.Ceremony):
         from launch_wallaby_wallet_server import create_server
         server,pool=create_server(self.folder/'http-cache',0,self.config,ipv6=False)
         pool.discovery.close();pool.nodes.health.closed=True
-        session=pool.create();entered=threading.Event();release=threading.Event()
+        session=pool.create()
+        from test_wallet_server2 import Passwords
+        flow=Passwords();flow.config=self.config;flow.uid=self.user;flow.auth=pool.auth;flow.password='An invented test passphrase 123!';flow.enroll('setup');challenge,proof=flow.login(session.token)
+        entered=threading.Event();release=threading.Event()
         def hold():
             with pool.nodes.hub.edit():entered.set();release.wait(3)
         writer=threading.Thread(target=hold);writer.start();self.assertTrue(entered.wait(1))
         serving=threading.Thread(target=server.serve_forever,daemon=True);serving.start()
         try:
             c=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=.6);started=time.monotonic()
-            c.request('POST','/api/login',json.dumps({'user_id':self.user}),{'X-Session-Token':session.token,'Content-Type':'application/json'})
+            c.request('POST','/api/auth/finish',json.dumps({'id':challenge['id'],'request':proof['finishLoginRequest']}),{'X-Session-Token':session.token,'Content-Type':'application/json'})
             response=c.getresponse();result=json.loads(response.read());elapsed=time.monotonic()-started;c.close()
             self.assertEqual(response.status,200,result);self.assertEqual(result['user']['id'],self.user)
             self.assertLess(elapsed,.6)

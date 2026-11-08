@@ -57,6 +57,7 @@ class Discovery(unittest.TestCase):
    url='http://127.0.0.1:'+str(server.server_port)
    req=urllib.request.Request(url+'/api/session',method='POST',headers={'X-Wallaby-Request':'1'})
    with urllib.request.urlopen(req) as response:token=json.load(response)['token']
+   pool.get(token).user_id=self.uid # Authenticated fixture; this test covers birth-date validation.
    payload={'name':'New Example','colour':'blue','gender':'female','revision':FamilyStore(self.config).snapshot()['revision']}
    def request():return urllib.request.urlopen(urllib.request.Request(url+'/api/users/save',json.dumps(payload).encode(),headers={'Content-Type':'application/json','X-Session-Token':token}))
    with self.assertRaises(urllib.error.HTTPError) as error:request()

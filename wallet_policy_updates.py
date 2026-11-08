@@ -48,6 +48,7 @@ def schedule(hub,ident):
             # its signing accounts. A signing account is not a policy monitor.
             if not {NodeWalletLoader.descriptor_key(r['desc']) for r in previous}<={NodeWalletLoader.descriptor_key(r['desc']) for r in route['raw']['descriptors']}:continue
             proposal={'kind':'wallet_policy_refresh','version':1,'request_id':key,'chain':'main','wallet':route['name'],'previous_descriptors':[r['desc'] for r in previous],'receive_descriptor':d['descriptors'][0]['desc'],'change_descriptor':d['descriptors'][1]['desc'],'timestamp':d['policy_timestamp'],'expires_at':int(time.time())+86390,'receiving_address':__import__('refresh_comparison').receiving_address(d)}
+            if d.get('relay_peer_transport'):proposal.update(version=2,peer_transport=copy.deepcopy(d['relay_peer_transport']))
             state['requests'][key]={'kind':'wallet_policy_refresh','node_id':node['id'],'destination_id':ident,'workspace_id':d.get('workspace_id'),'state':'pending','proposal':proposal,'created_utc':hub.utc(),**({'batch_required':True,'required_wallets':sorted(set(d['approval_wallets'].get(node['id'],[]))|{route['name']}),'previous_wallet_descriptors':{**copy.deepcopy(d['approval_public_before'].get(node['id'],{})),route['name']:[r['desc'] for r in route['raw']['descriptors']]},'renewal_workspace_id':d['renewal_workspace_id']} if d.get('approval_nodes') else {})}
 
     if not d.get('policy_requests_started'):
@@ -72,6 +73,10 @@ def proposals(hub,node):
         result=[]
         for key,r in s['requests'].items():
             if r['kind']=='wallet_policy_refresh' and r['node_id']==node and r['state']=='pending':
+                if r['proposal'].get('version')==2:
+                    if 'wallet_policy_refresh_relay_v1' not in hub.caps.get(node,set()):continue
+                    peers=Destinations(hub.config).get(r['destination_id']).get('approval_nodes',[])
+                    if not hub.relay.mesh(peers)['ready']:continue
                 if r.get('batch_required') and BATCH_CAPABILITY not in hub.caps.get(node,set()):continue
                 if 'receiving_address' in r['proposal'] and not __import__('refresh_comparison').supported(hub,node):continue
                 if r['proposal']['expires_at']<=time.time():r.update(state='error',message='Policy request expired. Review the existing local outcome before requesting another refresh.');continue

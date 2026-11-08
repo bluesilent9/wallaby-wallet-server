@@ -37,6 +37,8 @@ class Setup(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.config=Path(self.tmp.name)/'config.cfg';self.family=FamilyStore(self.config);self.family.save_user('Example','green',revision=self.family.snapshot()['revision']);self.user=self.family.snapshot()['users'][0]['id'];self.registry=NodeRegistry(self.config);self.registry.health.refresh=lambda _:None;self.hub=self.registry.hub
         self.a=self.register('02:80:00:00:00:01','first');self.b=self.register('02:80:00:00:00:02','second');self.wallet,self.master,self.vault,self.prev,self.tx,self.unsigned,self.signed,self.history=fixture();DescriptorStore(self.config).replace_node_wallets([self.wallet]);self.rid=resource_id('descriptor',self.wallet['id'])
         inv=[{'id':self.rid,'kind':'descriptor','source':self.wallet['id'],'name':'Example Wallet'}];self.family.save_ownership([{'id':self.rid,'name':'Example Wallet','owner_id':self.user,'external':False,'smsf':False}],self.family.snapshot()['revision'],inv)
+        from relay_fixtures import legacy_transfers
+        legacy_transfers(self)
         self.node_wallet={'name':self.wallet['name'],'raw':self.wallet['raw'],'id':self.wallet['id'],'private_keys_enabled':True,'scanning':False}
         self.hub.inventories[self.a['node_id']]={'wallets':[copy.deepcopy(self.node_wallet)],'complete':True};self.hub.inventories[self.b['node_id']]={'wallets':[dict(copy.deepcopy(self.node_wallet),name='different_watch_name',private_keys_enabled=False)],'complete':True}
     def register(self,mac,host):

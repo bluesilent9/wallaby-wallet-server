@@ -16,6 +16,9 @@ def reason(hub,state,rows):
     if not {source['node_id'],target['node_id']}<=live.keys():return 'peer_offline','Waiting for both paired Agents to be connected without identity conflicts.'
     for row in rows:
         p=row.get('proposal')
+        if p and p.get('transfer_version')==3:
+            if not hub.relay.mesh([row['node_id'],row['peer_id']])['ready']:return 'secure_pairing_required','QR-pair both Agents and reconnect their end-to-end encrypted channel.'
+            continue
         if p and (p['node_ipv6']!=state['nodes'].get(row['node_id'],{}).get('ipv6') or p['peer']['ipv6']!=state['nodes'].get(row['peer_id'],{}).get('ipv6')):return 'peer_changed','A paired IPv6 address changed. Reconcile both Agents, then start a fresh review; the old endpoints were not silently replaced.'
     if not all(r.get('proposal') for r in rows):return 'discovery_pending','Waiting for both node inventories, blockchain checks and peer addresses before preparing local reviews.'
     if not all(r.get('queue_visible') for r in rows):return 'review_paused','The review is paused by node readiness, policy, rename or retirement checks.'

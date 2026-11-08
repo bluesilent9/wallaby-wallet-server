@@ -229,3 +229,5 @@ body{min-width:1120px}.family-login h1,.family-admin h1{font-size:40px;font-weig
 .builder-read-only-notice p{margin:10px 0 14px}
 
 .mobile-intro{margin:24px 0}.mobile-page .node-grid{margin-top:24px}.mobile-device .mono{font-size:12px;overflow-wrap:anywhere}.mobile-revoked{opacity:.6}.mobile-pairing{max-width:540px}.mobile-pairing label{display:grid;gap:8px;margin:16px 0}.mobile-pair-qr{display:block;width:min(100%,330px);margin:20px auto}.mobile-pair-code{display:block;font-size:42px;letter-spacing:8px;text-align:center;margin:24px 0}
+
+.password-dialog{max-width:520px;border:1px solid #b4c3b7;border-radius:18px;padding:28px;color:#17332c}.password-dialog::backdrop{background:#10282088}.password-dialog form{display:grid;gap:16px}.password-dialog input{width:100%;padding:14px;border:1px solid #a7b7ab;border-radius:8px}

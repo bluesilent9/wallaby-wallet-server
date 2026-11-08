@@ -51,7 +51,9 @@ class Transfers:
         sender=next((r for r in rows or [] if r['direction']=='send' and r['node_id']==node),None)
         if not sender or digest(sender.get('proposal',{}))!=payload['request_hash'] or not sender.get('base_sent'):raise ValueError('Unsolicited preview or not the paired sending Agent.')
         wire={k:payload[k] for k in ('preview','public_key','signature')};v=wire['preview'];p=sender['proposal']
-        if (v['transfer_id'],v['challenge'],v['sender_ipv6'],v['receiver_ipv6'])!=(p['transfer_id'],p['preview_challenge'],p['node_ipv6'],p['peer']['ipv6']) or v['version']!=2 or policies(v['public_wallet'],True)!=policies(p['public_wallet'],True) or v.get('restoration')!=p.get('restoration'):raise ValueError('Preview wallet, restoration purpose, challenge or peer addresses differ from the frozen request.')
+        from relay_bindings import matches_preview
+        if not matches_preview(v,p) or policies(v['public_wallet'],True)!=policies(p['public_wallet'],True) or v.get('restoration')!=p.get('restoration'):raise ValueError('Preview wallet, restoration purpose, challenge or authenticated peers differ from the frozen request.')
+        if p.get('transfer_version')==3 and wire['public_key']!=p['transport']['sender_identity']:raise ValueError('Signed preview identity differs from the authenticated sending Agent.')
         original=sender.get('signed_preview')
         if original and original['public_key']!=wire['public_key']:raise ValueError('The sending Agent preview identity changed. Reconcile locally.')
         # Authenticated public notices are not operation outcomes. A stale notice

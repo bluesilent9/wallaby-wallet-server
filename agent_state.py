@@ -30,7 +30,7 @@ def validate(state,users,config=None):
             if type(row['sync_revision']) is not int or row['sync_revision']<0 or not isinstance(row.get('sync_snapshot'),list) or len(row['sync_snapshot'])>128:raise ValueError('Invalid saved synchronization list.')
             seen=set()
             for p in row['sync_snapshot']:
-                if p.get('kind')!='wallet_transfer' or p.get('transfer_version')!=2 or p.get('transfer_id') in seen:raise ValueError('Invalid saved synchronization row.')
+                if p.get('kind')!='wallet_transfer' or p.get('transfer_version') not in (2,3) or p.get('transfer_id') in seen:raise ValueError('Invalid saved synchronization row.')
                 seen.add(p['transfer_id']);canonical(p)
     for row in state['exports'].values():
         if row.get('user_id') not in users:raise ValueError('Saved vault proposal refers to an unknown profile.')
@@ -49,6 +49,9 @@ def validate(state,users,config=None):
             elif 'restoration' in p:raise ValueError('A restoration proposal requires a saved Wallet Server lifecycle request.')
         if row.get('kind')=='wallet_policy_refresh':
             p=row['proposal']
+            if p.get('version')==2:
+                from relay_bindings import validate_requirements
+                validate_requirements(p.get('peer_transport'))
             if p.get('kind')!='wallet_policy_refresh' or p.get('request_id')!=ident or p.get('chain')!='main' or len(p.get('previous_descriptors',[]))!=2:raise ValueError('Invalid saved public policy refresh.')
             from builder_destinations import validate_record
             clean_wallet({'wallet_name':p['wallet'],'descriptors':[{'desc':d,'range':[0,999],'active':False,'internal':bool(i%2)} for i,d in enumerate([*p['previous_descriptors'],p['receive_descriptor'],p['change_descriptor']])]})
@@ -61,5 +64,7 @@ def validate(state,users,config=None):
             from wallet_preview import validate as validate_preview,verify,policies
             payload=row['signed_preview'];p=row['proposal'];v=payload['preview']
             proof=verify(config,payload,fresh=False) if config else validate_preview(payload,fresh=False)
-            if row['direction']!='send' or (v['transfer_id'],v['challenge'],v['sender_ipv6'],v['receiver_ipv6'])!=(p['transfer_id'],p['preview_challenge'],p['node_ipv6'],p['peer']['ipv6']) or policies(v['public_wallet'],True)!=policies(p['public_wallet'],True) or v.get('restoration')!=p.get('restoration'):raise ValueError('Saved preview does not match its frozen request.')
+            from relay_bindings import matches_preview
+            if p.get('transfer_version')==3 and payload['public_key']!=p['transport']['sender_identity']:raise ValueError('Saved relay preview sender identity mismatch.')
+            if row['direction']!='send' or not matches_preview(v,p) or policies(v['public_wallet'],True)!=policies(p['public_wallet'],True) or v.get('restoration')!=p.get('restoration'):raise ValueError('Saved preview does not match its frozen request.')
     return state

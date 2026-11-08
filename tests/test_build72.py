@@ -23,11 +23,13 @@ class Refresh(unittest.TestCase):
   for i,key in enumerate(masters):
    node=list(self.accounts)[i%2];name='Role '+str(i+1);w=clean_wallet(raw(name,['wpkh('+key+'/'+str(branch)+'/*)' for branch in (0,1)]));self.accounts[node].append({'name':name,'id':w['id'],'raw':w['raw'],'private_keys_enabled':True,'scanning':False,**({'archive_id':str(i)*64,'signing_only':True} if i>=3 else {})})
   for node,accounts in self.accounts.items():
-   self.hub.caps[node]={'partial_signing'};self.hub.inventories[node]['wallets']=copy.deepcopy(accounts)+[{'name':'Logical vault','raw':monitor,'private_keys_enabled':True}]
+   self.hub.caps[node]={'partial_signing','wallet_relay_v1','wallet_policy_refresh_relay_v1'};self.hub.inventories[node]['wallets']=copy.deepcopy(accounts)+[{'name':'Logical vault','raw':monitor,'private_keys_enabled':True}]
   self.hub.registry.rpc.call=self.rpc
   self.work,self.dest=self.f.transaction()
   with patch.object(self.checks,'ensure',return_value={}):start(self.hub,self.f.user,self.f.rid,self.dest['id'])
   self.w=self.work.owned(self.f.user,'wallet');self.scan()
+  from relay_fixtures import signed_mesh
+  signed_mesh(self.f)
  def rpc(self,node,method,params=None,wallet=None,**kw):
   self.calls.append((method,wallet,kw.get('priority')))
   if self.busy:return {'state':'error'}
@@ -91,7 +93,9 @@ class Refresh(unittest.TestCase):
       if account['name']=='Logical vault':account['raw']=raw
     self.work,self.dest=self.f.transaction()
     with patch.object(self.checks,'ensure',return_value={}):start(self.hub,self.f.user,self.f.rid,self.dest['id'])
-    self.w=self.work.owned(self.f.user,'wallet');self.scan();self.assertEqual(self.w['draft']['name'],'Logical vault')
+    self.w=self.work.owned(self.f.user,'wallet');self.scan()
+  from relay_fixtures import signed_mesh
+  signed_mesh(self.f);self.assertEqual(self.w['draft']['name'],'Logical vault')
   self.assertEqual(len(addresses),3)
 
  def test_http_poll_reports_detected_roles_and_finish_rejects_missing_signer(self):

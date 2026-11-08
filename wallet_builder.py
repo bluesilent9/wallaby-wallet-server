@@ -106,7 +106,7 @@ class WalletBuilder:
                 if not prior or reply==prior:s['challenges'][n['id']]=secrets.token_hex(32)
         return self.snapshot()
     def start(self,user,data,workspace_id=None):
-        if not isinstance(data,dict) or set(data)!={'name','threshold','height','roles','fingerprints_compared'} or data['fingerprints_compared'] is not True:raise ValueError('Compare each full Agent fingerprint locally before requesting creation.')
+        if not isinstance(data,dict) or set(data)!={'name','threshold','height','roles','fingerprints_compared'} or data['fingerprints_compared'] is not True:raise ValueError('Confirm the Agent identities through local QR pairing before requesting creation.')
         roles=data['roles']
         if not isinstance(roles,list) or not 1<=len(roles)<=15:raise ValueError('Choose 1 to 15 independent signer roles.')
         ready={n['id']:n for n in self.available()}
@@ -117,9 +117,12 @@ class WalletBuilder:
             for index,r in enumerate(roles):
                 if not isinstance(r,dict) or set(r)!={'node_id','name','storage'} or r['node_id'] not in ready or r['node_id'] not in s['identities']:raise ValueError('Discover and verify every selected Agent first.')
                 identity=s['identities'][r['node_id']]
-                if identity['message']['challenge']!=s['challenges'].get(r['node_id']):raise ValueError('Wait for the fresh identity challenge response.')
+                if len(roles)==1 and identity['message']['challenge']!=s['challenges'].get(r['node_id']):raise ValueError('Wait for the fresh identity challenge response.')
                 rid='signer-'+str(index+1);routes[rid]=r['node_id'];assigned.append({'id':rid,'name':r['name'],'storage':r['storage'],'agent_key':identity['public_key']})
+            if len(assigned)>1:self.hub.relay.require_mesh(routes.values())
             p={'kind':'wallet_setup','version':1,'session_id':secrets.token_hex(32),'chain':'main','name':data['name'].strip(),'threshold':data['threshold'],'cosigners':assigned,'height':data['height'],'expires_at':int(time.time())+86400-5};proposal(p)
+            if len(assigned)>1:p.update(version=2,peer_transport={'protocol':'wallaby-wallet-relay','version':1,'cipher_suite':__import__('secure_relay').CIPHER,'required_agent_keys':sorted({r['agent_key'] for r in assigned})})
+            proposal(p)
             h=digest(p);s['sessions'][h]={'proposal':p,'routes':routes,'creator_id':user,'workspace_id':workspace_id,'state':'participation','contributions':{},'acks':{},'inventories':{},'created_utc':self.hub.utc(),'message':'Approve participation and key generation locally on each producing Agent.'}
         self.hub.registry.diagnostic_log.append('Wallet Builder','Created public proposal · setup='+h[:12]+' · workspace='+(workspace_id or 'unbound')[:12])
         return dict(self.snapshot(),created_id=h)
@@ -197,6 +200,8 @@ class WalletBuilder:
             if node in s['challenges'] and s.get('identities',{}).get(node,{}).get('message',{}).get('challenge')!=s['challenges'][node]:output.append({'kind':'wallet_setup_identity','version':1,'challenge':s['challenges'][node]})
             for h,row in s['sessions'].items():
                 if node not in row['routes'].values() or row['state'] in ('cancelled','interrupted'):continue
+                if row['proposal'].get('version')==2 and row['state']!='ready' and not self.hub.relay.mesh(row['routes'].values())['ready']:
+                    row['message']='Waiting for the producing Agents to restore their authenticated encrypted peer channels.';continue
                 if row['proposal']['expires_at']<=time.time() and row['state']!='ready':row['state']='interrupted';row['interruption_reason']='expired';row['message']='Ceremony expired. Reconcile locally; existing keys must not be regenerated.';continue
                 key=(h,node);prior=self.live.get(key)
                 if prior is not None and prior!=token and row['state']!='ready':
@@ -239,7 +244,7 @@ class WalletBuilder:
         from node_wallets import NodeWalletLoader
         state=self.read();nodes=[]
         for n in self.available():
-            identity=state['identities'].get(n['id']);nodes.append({'id':n['id'],'hostname':n['hostname'],'fingerprint':identity['message']['fingerprint'] if identity else None,'requested':n['id'] in state['challenges'],'fresh':bool(identity and identity['message']['challenge']==state['challenges'].get(n['id']))})
+            identity=state['identities'].get(n['id']);nodes.append({'id':n['id'],'hostname':n['hostname'],'fingerprint':identity['message']['fingerprint'] if identity else None,'requested':n['id'] in state['challenges'],'relay_ready':bool(self.hub.relay.mesh([n['id']])['ready'] and any(e['principal']['role']=='agent' and e['principal']['owner']==n['id'] and self.hub.relay.online(e) for e in list(self.hub.relay.endpoints.values()))),'fresh':bool(identity and identity['message']['challenge']==state['challenges'].get(n['id']))})
         sessions=[]
         for h,r in state['sessions'].items():
             row=copy.deepcopy(r);row['id']=h;row['samples']=[];row['producers']=[{'role_id':role['id'],'hostname':state['identities'].get(r['routes'][role['id']],{}).get('message',{}).get('hostname','Agent'),'fingerprint':fingerprint(role['agent_key'])} for role in r['proposal']['cosigners']]
@@ -273,7 +278,7 @@ class WalletBuilder:
                 self.hub.registry.diagnostic_log.append('Wallet Builder','Progress · setup='+h[:12]+' · workspace='+(r.get('workspace_id') or 'unbound')[:12]+' · state='+r['state']+' · status='+status+' · contributions='+str(len(r['contributions']))+'/'+str(len(r['proposal']['cosigners']))+' · proofs='+str(len(r['acks']))+' · confirmed='+str(len(confirmed))+'/'+str(len(required)))
                 signatures[h]=signature;self.progress_signatures=signatures
             sessions.append(row)
-        return {'nodes':nodes,'sessions':sessions}
+        return {'peer_channels':self.hub.relay.mesh([n['id'] for n in nodes]),'nodes':nodes,'sessions':sessions}
 
 
 def validate_archive(config,state,users):

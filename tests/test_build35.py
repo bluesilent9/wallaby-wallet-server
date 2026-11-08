@@ -24,7 +24,7 @@ class Archives(Setup):
   def get():
    c=http.client.HTTPConnection('::1',server.server_port,timeout=5);c.request('GET','/api/wallets/archive-options?wallet_id=fixture',headers={'X-Session-Token':session.token});r=c.getresponse();data=json.loads(r.read());c.close();return r.status,data
   try:
-   self.assertEqual(get()[0],400);session.user_id=self.user
+   self.assertEqual(get()[0],401);session.user_id=self.user
    with patch.object(ArchiveQueue,'options',return_value=[{'id':'selection','node_id':'agent','hostname':'Fixture','wallet':'Local wallet','compatible':True,'public_wallet':self.wallet['raw'],'related_policies':[]}]) as options:
     code,data=get();self.assertEqual(code,200);self.assertEqual(data['sources'][0]['id'],'selection');self.assertNotIn('public_wallet',data['sources'][0]);self.assertNotIn('related_policies',data['sources'][0]);options.assert_called_once_with('fixture')
   finally:server.shutdown();server.server_close();thread.join(3)

@@ -141,6 +141,8 @@ class Destinations:
         result['wallets']=list(wallets.values());return result
 
 def validate_record(d):
+    if isinstance(d,dict) and d.get('relay_peer_transport'):
+        __import__('relay_bindings').validate_requirements(d['relay_peer_transport'])
     import re
     from descriptor_store import clean_wallet
     if not isinstance(d,dict) or not re.fullmatch(r'receive-[0-9a-f]{32}',str(d.get('id'))) or type(d.get('index')) is not int or not 0<=d['index']<2**31:raise ValueError('Invalid reserved receiving address.')

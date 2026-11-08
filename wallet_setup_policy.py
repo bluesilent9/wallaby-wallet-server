@@ -22,7 +22,13 @@ def proposal(p,fresh=True):
         from wallet_retirement import validate
         return validate(p)
     if p.get('kind')=='wallet_setup':
-        if set(p)!={'kind','version','session_id','chain','name','threshold','cosigners','height','expires_at'} or p['version']!=1:raise ValueError('Invalid setup proposal fields.')
+        fields={'kind','version','session_id','chain','name','threshold','cosigners','height','expires_at'}
+        if p.get('version')==2:
+            from secure_relay import CIPHER
+            fields.add('peer_transport');transport=p.get('peer_transport')
+            if not isinstance(transport,dict) or set(transport)!={'protocol','version','cipher_suite','required_agent_keys'} or transport['protocol']!='wallaby-wallet-relay' or transport['version']!=1 or transport['cipher_suite']!=CIPHER or transport['required_agent_keys']!=sorted({r['agent_key'] for r in p.get('cosigners',[]) if isinstance(r,dict) and 'agent_key' in r}):raise ValueError('Invalid authenticated peer requirements.')
+        elif p.get('version')!=1:raise ValueError('Invalid setup protocol version.')
+        if set(p)!=fields:raise ValueError('Invalid setup proposal fields.')
         if not HEX.fullmatch(str(p['session_id'])) or p['chain'] not in NETWORK or type(p['expires_at']) is not int or p['expires_at']<=0 or fresh and not time.time()<p['expires_at']<=time.time()+86400:raise ValueError('Expired or invalid setup session.')
         text(p['name'],128)
         if '|' in p['name']:raise ValueError('Wallet name must not contain archive separators.')

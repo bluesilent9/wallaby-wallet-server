@@ -1,3 +1,7 @@
+## Wallet Server Build 2: encrypted peer relay
+
+Implement [SECURE_RELAY.md](docs/SECURE_RELAY.md) before new multisig builds or sync transfer v3. It defines Agent-role pairing, Noise IKpsk2, signed relay registration/liveness, wallet_setup v2, and transfer preview v3. Existing signed operations keep their exact hashes for reconciliation. The Server cannot decrypt private peer payloads. Agent implementation is a separate project.
+
 # Current Agent protocol — Wallet Server Build 68
 
 Requires Agent V2 Build 56 or later. No older Agent release fallback or presence-only registration is supported. Wire endpoint `/agent/v1` and exchange `/agent/v2` remain the current APIs used by Agent 56.

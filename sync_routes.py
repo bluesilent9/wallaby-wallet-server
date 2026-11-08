@@ -13,6 +13,7 @@ def renew(transfers,state):
         if len(rows)!=2 or any(r['state']!='pending' or r.get('superseded_attempt') or r.get('superseded_container') for r in rows):continue
         if any(r.get('retry_of')==ident for r in state['requests'].values()):continue
         if not all(r.get('proposal') for r in rows):continue
+        if any(r['proposal'].get('transfer_version')==3 for r in rows):continue
         nodes={r['node_id'] for r in rows}
         if not nodes<=live.keys() or any(transfers.is_busy(n) for n in nodes):continue
         if any(not state['nodes'].get(n,{}).get('ipv6') for n in nodes):continue

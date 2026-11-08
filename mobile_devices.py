@@ -1,4 +1,4 @@
-"""Paired, verification-only mobile clients. No wallet or approval authority."""
+"""Paired mobile relay and account reads. No wallet or approval authority."""
 import hashlib,json,secrets,threading,time,re
 from datetime import datetime,timezone
 from pathlib import Path
@@ -72,7 +72,7 @@ class MobileDevices:
             for ident,row in state['devices'].items():
                 if row['user_id']!=user:continue
                 live=[s for s in self.sessions.values() if s['device_id']==ident]
-                devices.append({'id':ident,'name':row['name'],'fingerprint':fingerprint(row['public_key']),'paired_utc':row['paired_utc'],'revoked':row['revoked'],'connected':any(time.time()-s['seen']<60 for s in live),'last_seen_utc':utc(max(s['seen'] for s in live)) if live else None,'scope':'verification-only','verification':self.results.get(ident)})
+                devices.append({'id':ident,'name':row['name'],'fingerprint':fingerprint(row['public_key']),'paired_utc':row['paired_utc'],'revoked':row['revoked'],'connected':any(time.time()-s['seen']<60 for s in live),'last_seen_utc':utc(max(s['seen'] for s in live)) if live else None,'scope':'relay-and-account-read','verification':self.results.get(ident)})
             pending=[{'id':key,'name':r['name'],'fingerprint':fingerprint(r['public_key']),'comparison_code':r['comparison_code']} for key,r in self.pending.items() if r['user_id']==user]
             return {'server_id':state['server_id'],'transport':'ssh-loopback','host_fingerprint':fingerprint(self.ssh_host_public_key) if self.ssh_host_public_key else None,'enabled':bool(self.mobile_port and self.ssh_host_public_key),'devices':devices,'pending':pending,'protocol':PROTOCOL,'version':1}
     def invite(self,user,connection):
@@ -111,6 +111,10 @@ class MobileDevices:
             state=self.read();row=state['devices'].get(ident)
             if not row or row['user_id']!=user:raise ValueError('Unknown mobile device.')
             row['revoked']=True;self.save(state)
+            relay=getattr(self.hub,'relay',None)
+            if relay is not None:
+                with relay.lock:
+                    endpoint=__import__('secure_relay').endpoint_id('mobile',row['public_key']);relay.invalidate(endpoint);relay.endpoints.pop(endpoint,None)
             self.sessions={k:v for k,v in self.sessions.items() if v['device_id']!=ident};self.challenges={k:v for k,v in self.challenges.items() if v['device_id']!=ident}
             return {'revoked':True}
     def challenge(self,ident):
@@ -129,7 +133,7 @@ class MobileDevices:
             if verify(self.config,proof,device['public_key'],CONNECT_NAMESPACE)!=expected:raise ValueError('Invalid mobile connection proof.')
             self.challenges.pop(m['challenge']);token=secrets.token_urlsafe(32);self.sessions={k:v for k,v in self.sessions.items() if v['device_id']!=m['device_id']}
             self.sessions[token]={'device_id':m['device_id'],'user_id':device['user_id'],'seen':time.time(),'expires':time.time()+900,'challenge':secrets.token_hex(32)}
-            return {'token':token,'expires_utc':utc(time.time()+900),'scope':'verification-only'}
+            return {'token':token,'expires_utc':utc(time.time()+900),'scope':'relay-and-account-read'}
     def client(self,token):
         self.prune();session=self.sessions.get(token)
         if not session:raise ValueError('Mobile session expired. Connect again.')
@@ -137,6 +141,30 @@ class MobileDevices:
         from preferences import FamilyStore
         if not device or device['revoked'] or device['user_id'] not in {u['id'] for u in FamilyStore(self.config).snapshot()['users']}:raise ValueError('Mobile access was revoked.')
         session['seen']=time.time();return session,device
+    def authenticate(self,token,action,data):
+        with self.lock:
+            session,device=self.client(token);uid=session['user_id'];scope='mobile:'+token
+            if action=='info':
+                if data:raise ValueError('Unexpected mobile authentication fields.')
+                from preferences import FamilyStore
+                user=FamilyStore(self.config).user(uid)
+                return dict(self.auth.metadata(uid),user={k:user[k] for k in ('id','name','colour','gender') if k in user})
+            if action=='start':
+                if data.get('user_id')!=uid:raise ValueError('This phone is paired to a different user.')
+                # Initial enrollment belongs to the existing SSH browser workflow.
+                if data.get('mode')!='login':raise ValueError('Create this account password in the browser first.')
+                return self.auth.start(scope,data)
+            if action=='finish':
+                if self.auth.finish(scope,data)!=uid:raise ValueError('Account identity changed.')
+                session['account_authenticated_until']=time.time()+900
+                return {'authenticated':True,'user_id':uid,'expires_utc':utc(session['account_authenticated_until'])}
+            raise ValueError('Unknown mobile authentication action.')
+    def data(self,token,section):
+        with self.lock:
+            session,_=self.client(token)
+            if session.get('account_authenticated_until',0)<=time.time():raise ValueError('Log in with your account password before requesting account data.')
+            from mobile_data import snapshot
+            return snapshot(self.config,session['user_id'],section)
     def claims(self,token):
         with self.lock:
             session,_=self.client(token);state=self.hub.read();setups=self.hub.wallet_builder.read();identities=setups.get('identities',{});claims=[]

@@ -110,6 +110,9 @@ def validate(root):
         for w in DescriptorStore(cfg).read()['wallets']:
             clean=clean_wallet(w['raw'])
             if clean['id']!=w.get('id') or clean['name']!=w.get('name'):raise ValueError('Descriptor identity check failed.')
+    if (root/'data/password-auth.json').exists():
+        from password_auth import validate as validate_password_auth
+        validate_password_auth(json.loads((root/'data/password-auth.json').read_text()),ids)
     if (root/'data/address-destinations.json').exists():
         from address_destinations import validate as validate_addresses
         validate_addresses(json.loads((root/'data/address-destinations.json').read_text()))
@@ -186,7 +189,7 @@ def portable_state(stage):
     Salary calculations remain disposable. An unfinished transaction diagram
     is a saved working state, independent of named reusable templates.
     """
-    data=stage/'data';(data/'salary-builder.json').unlink(missing_ok=True);(data/'mobile-devices.json').unlink(missing_ok=True)
+    data=stage/'data';(data/'password-auth.lock').unlink(missing_ok=True);(data/'salary-builder.json').unlink(missing_ok=True);(data/'mobile-devices.json').unlink(missing_ok=True)
     path=data/'builder-workspaces.json'
     if not path.exists():return
     state=json.loads(path.read_text());tx=state['workspaces'].get('transaction')

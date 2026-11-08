@@ -37,7 +37,10 @@ class ExactRefresh(unittest.TestCase):
  def test_actual_agent60_accepts_and_independently_rejects_wrong_address(self):
   source=Path(os.environ.get('WALLABY_AGENT_SOURCE','/nonexistent'))
   if not (source/'policy_refresh.py').exists():self.skipTest('Matching Agent source unavailable')
-  self.begin();p=next(iter(self.rows.values()))['proposal'];program="""import json,sys\nsys.path.insert(0,sys.argv[1])\nfrom policy_refresh import validate\np=json.loads(sys.argv[2]);validate(p);p['receiving_address']['address']='bc1qinvalid'\ntry:validate(p)\nexcept ValueError:print('matched and tampering refused')\nelse:raise AssertionError('Wrong address accepted')\n"""
+  self.begin()
+  from relay_fixtures import persisted_refresh_v1
+  persisted_refresh_v1(self)
+  p=next(iter(self.rows.values()))['proposal'];program="""import json,sys\nsys.path.insert(0,sys.argv[1])\nfrom policy_refresh import validate\np=json.loads(sys.argv[2]);validate(p);p['receiving_address']['address']='bc1qinvalid'\ntry:validate(p)\nexcept ValueError:print('matched and tampering refused')\nelse:raise AssertionError('Wrong address accepted')\n"""
   result=subprocess.check_output([sys.executable,'-c',program,str(source),json.dumps(p)],text=True);self.assertIn('tampering refused',result)
  def test_index_changes_are_bound_by_receipt_hash(self):
   self.begin();node=next(iter(self.rows));proposals(self.hub,node);envelope=self.receipt(node)

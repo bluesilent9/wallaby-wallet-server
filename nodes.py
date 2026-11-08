@@ -183,7 +183,7 @@ def create_agent_server(registry,port=DEFAULT_AGENT_PORT,gate=None,ipv6=True,ipv
         def do_GET(self):
             if not self.safe():return self.reply({'error':'SSH loopback agent endpoint required.'},403)
             if self.path!='/agent/v1/health':return self.reply({'error':'Not found'},404)
-            return self.reply({'protocol':'wallaby-agent','version':1,'capabilities':['presence','rpc'],'rpc_methods':sorted(METHODS)})
+            return self.reply({'protocol':'wallaby-agent','version':1,'capabilities':['presence','rpc','wallet_relay_v1'],'rpc_methods':sorted(METHODS)})
         def do_POST(self):
             if not self.safe() or self.headers.get('X-Wallaby-Agent')!='1':
                 registry.protocol_error(self.path,ValueError('Request rejected: loopback Host, no browser Origin and X-Wallaby-Agent: 1 are required.'));return self.reply({'error':'An agent protocol request is required.'},403)
@@ -193,7 +193,7 @@ def create_agent_server(registry,port=DEFAULT_AGENT_PORT,gate=None,ipv6=True,ipv
                 sizes=self.headers.get_all('Content-Length',[])
                 if len(sizes)!=1:raise ValueError('Provide one Content-Length.')
                 length=int(sizes[0])
-                limit=20*1024*1024 if self.path=='/agent/v2/exchange' else MAX_RESULT_BYTES+4096 if self.path=='/agent/v1/result' else 4096
+                limit=20*1024*1024 if self.path=='/agent/v2/exchange' else 70000 if self.path=='/agent/v1/relay' else MAX_RESULT_BYTES+4096 if self.path=='/agent/v1/result' else 4096
                 if not 0<length<=limit:raise ValueError('Agent request exceeds its size limit · boundary=dashboard_http · limit_bytes='+str(limit)+' · declared_bytes='+str(length)+'.')
                 raw=self.rfile.read(length)
                 if len(raw)!=length:raise ValueError('Incomplete agent request.')
@@ -209,10 +209,11 @@ def create_agent_server(registry,port=DEFAULT_AGENT_PORT,gate=None,ipv6=True,ipv
                     if self.path=='/agent/v1/register':
                         if set(data)!={'mac','hostname','rpc'}:raise ValueError('Expected mac, hostname and current RPC capabilities.')
                         return self.reply(registry.register(data['mac'],data['hostname'],data['rpc'],self.headers.get('X-Wallaby-Agent-Version')))
-                    if self.path not in ('/agent/v1/heartbeat','/agent/v1/disconnect','/agent/v1/poll','/agent/v1/ack','/agent/v1/result','/agent/v2/exchange'):return self.reply({'error':'Not found'},404)
+                    if self.path not in ('/agent/v1/heartbeat','/agent/v1/disconnect','/agent/v1/poll','/agent/v1/ack','/agent/v1/result','/agent/v1/relay','/agent/v2/exchange'):return self.reply({'error':'Not found'},404)
                     auth=self.headers.get('Authorization','')
                     if not auth.startswith('Bearer '):raise PermissionError('Connection token required.')
                     token=auth[7:]
+                    if self.path=='/agent/v1/relay':return self.reply(registry.hub.relay.dispatch(registry.hub.relay.agent(token),data))
                     if self.path=='/agent/v2/exchange':return self.reply(registry.hub.exchange(token,data,self.headers.get('X-Wallaby-Agent-Version')))
                     if self.path=='/agent/v1/poll':
                         if set(data)-{'wait_seconds'}:raise ValueError('Unexpected poll fields.')

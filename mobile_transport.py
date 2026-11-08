@@ -31,7 +31,7 @@ def create_mobile_server(devices,host,port,host_key_file,gate):
             if len(hosts)!=1 or not loopback_authority(hosts[0]) or self.headers.get_all('X-Wallaby-Mobile',[])!=['1'] or self.headers.get_all('Origin') or self.headers.get_all('Cookie') or self.headers.get_all('Transfer-Encoding') or self.headers.get('Content-Type')!='application/json':return self.reply({'error':'A native mobile request through SSH is required.'},403)
             try:
                 lengths=self.headers.get_all('Content-Length',[])
-                if len(lengths)!=1 or not lengths[0].isdigit() or not 0<int(lengths[0])<=65536:raise ValueError('Invalid mobile request size.')
+                if len(lengths)!=1 or not lengths[0].isdigit() or not 0<int(lengths[0])<=70000:raise ValueError('Invalid mobile request size.')
                 raw=self.rfile.read(int(lengths[0]))
                 if len(raw)!=int(lengths[0]):raise ValueError('Incomplete mobile request.')
                 data=json.loads(raw,object_pairs_hook=unique)
@@ -45,6 +45,12 @@ def create_mobile_server(devices,host,port,host_key_file,gate):
                     auth=self.headers.get_all('Authorization',[])
                     if len(auth)!=1 or not auth[0].startswith('Bearer '):return self.reply({'error':'Connect this paired mobile device first.'},401)
                     token=auth[0][7:]
+                    if path=='/mobile/v1/relay':return self.reply(devices.hub.relay.dispatch(devices.hub.relay.mobile(devices,token),data))
+                    if path.startswith('/mobile/v1/auth/'):
+                        return self.reply(devices.authenticate(token,path.rsplit('/',1)[1],data))
+                    if path=='/mobile/v1/data':
+                        if set(data)!={'section'}:raise ValueError('Choose a data section.')
+                        return self.reply(devices.data(token,data['section']))
                     if path=='/mobile/v1/claims':return self.reply(devices.claims(token))
                     if path=='/mobile/v1/result':return self.reply(devices.result(token,data.get('proof')))
                     return self.reply({'error':'Unknown mobile endpoint.'},404)

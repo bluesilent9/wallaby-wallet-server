@@ -139,7 +139,9 @@ class Session:
             self.transaction_refresh_context=self.access()['ownership_context']
             
     def family(self):
-        data=FamilyStore(self.preferences_path).snapshot();access=self.access(data);user=next((u for u in data['users'] if u['id']==self.user_id),None)
+        data=FamilyStore(self.preferences_path).snapshot()
+        if not self.user_id:return {'users':[{k:v for k,v in u.items() if k in ('id','name','colour','gender')} for u in data['users']],'revision':data['revision'],'user':None,'ownership':[],'descriptors':{'wallets':[]},'builders':{},'password_authentication':True}
+        access=self.access(data);user=next((u for u in data['users'] if u['id']==self.user_id),None)
         active=WorkflowStore(self.preferences_path).active(self.user_id) if user else []
         latest=max(active,key=lambda row:row['created_utc'])['id'] if active else None
         balance_report=BalanceStore(self.preferences_path).personal(report_signature(data,DescriptorStore(self.preferences_path).summary()['fingerprint']),user,allow_saved=True) if user and access['ownership_available'] else None
@@ -408,14 +410,21 @@ class Sessions:
         self.sessions={};self.user_activity={};self.lock=threading.RLock();self.profile_gate=ProfileGate()
         self.max_sessions=max_sessions;self.idle_seconds=idle_seconds
         self.nodes=NodeRegistry(self.preferences_path);self.node_load_lock=threading.Lock()
+        from password_auth import PasswordAuth
+        self.auth=PasswordAuth(self.preferences_path)
         from mobile_devices import MobileDevices
         self.mobile=MobileDevices(self.preferences_path,self.nodes.hub)
+        self.mobile.auth=self.auth
         self.nodes.hub.mobile_verification_active=self.mobile.has_clients
     def create(self):
         self.expire()
         with self.lock:
             if len(self.sessions)>=self.max_sessions:raise ValueError('All browser workspaces are in use. Close an unused workspace and try again.')
             session=Session(self.root,self.preferences_path);session.diagnostic_log=self.nodes.diagnostic_log;session.rpc_broker=self.nodes.rpc;session.node_registry=self.nodes;session.node_load_lock=self.node_load_lock;session.profile_gate=self.profile_gate;session.last_seen=time.monotonic();self.sessions[session.token]=session;return session
+    def rotate(self,session):
+        with self.lock:
+            self.sessions.pop(session.token,None);session.token=secrets.token_urlsafe(32);self.sessions[session.token]=session
+            return session.token
     def get(self,token):
         with self.lock:
             session=self.sessions.get(token or '')
@@ -507,6 +516,7 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                     except (ValueError,FeeUnavailable) as exc:return self.json({'error':str(exc)},400)
                 session=self.authorized()
                 if not session:return self.json({'error':'This browser workspace is not authorised'},403)
+                if not session.user() and path!='/api/family':return self.json({'error':'Log in with your account password first.'},401)
                 if path=='/api/mobile':
                     if not session.user():return self.json({'error':'Select a user first.'},400)
                     return self.json(sessions.mobile.snapshot(session.user_id))
@@ -683,7 +693,7 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                     self.send_header('Content-Disposition',f'attachment; filename="Wallaby_Bitcoin_Dashboard_{personal["financial_year"]}.html"')
                     self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(body);return
                 return self.json({'error':'No completed report is available'},404)
-            files={'/assets/mobile_devices.js':'assets/mobile_devices.js','/assets/wallet_history.js':'assets/wallet_history.js','/assets/wallet_processes.js':'assets/wallet_processes.js','/assets/wallet_renames.js':'assets/wallet_renames.js','/assets/address_history.js':'assets/address_history.js','/assets/ownership_hints.js':'assets/ownership_hints.js','/assets/wallet_archives.js':'assets/wallet_archives.js','/assets/node_explorer.js':'assets/node_explorer.js','/assets/salary_diagram.js':'assets/salary_diagram.js','/assets/icon_tooltips.js':'assets/icon_tooltips.js','/assets/salary.js':'assets/salary.js','/assets/builder_workspace.js':'assets/builder_workspace.js','/assets/vault_estimator.js':'assets/vault_estimator.js','/assets/timezones.json':'assets/timezones.json','/assets/timezones-CODE_LICENSE':'assets/timezones-CODE_LICENSE','/assets/timezones-DATA_LICENSE':'assets/timezones-DATA_LICENSE','/':'index.html','/assets/wallet_builder.js':'assets/wallet_builder.js','/assets/builder_values.js':'assets/builder_values.js','/assets/builder.js':'assets/builder.js','/assets/style.css':'assets/style.css','/assets/app.js':'assets/app.js','/assets/history.js':'assets/history.js','/assets/fees.js':'assets/fees.js','/assets/node_blocks.js':'assets/node_blocks.js','/assets/mempool_blocks.css':'assets/mempool_blocks.css','/assets/family.js':'assets/family.js','/assets/descriptors.js':'assets/descriptors.js','/assets/logo.svg':'assets/logo.svg'}
+            files={'/assets/password_auth.js':'assets/password_auth.js','/assets/opaque.js':'vendor/opaque/client.js','/assets/mobile_devices.js':'assets/mobile_devices.js','/assets/wallet_history.js':'assets/wallet_history.js','/assets/wallet_processes.js':'assets/wallet_processes.js','/assets/wallet_renames.js':'assets/wallet_renames.js','/assets/address_history.js':'assets/address_history.js','/assets/ownership_hints.js':'assets/ownership_hints.js','/assets/wallet_archives.js':'assets/wallet_archives.js','/assets/node_explorer.js':'assets/node_explorer.js','/assets/salary_diagram.js':'assets/salary_diagram.js','/assets/icon_tooltips.js':'assets/icon_tooltips.js','/assets/salary.js':'assets/salary.js','/assets/builder_workspace.js':'assets/builder_workspace.js','/assets/vault_estimator.js':'assets/vault_estimator.js','/assets/timezones.json':'assets/timezones.json','/assets/timezones-CODE_LICENSE':'assets/timezones-CODE_LICENSE','/assets/timezones-DATA_LICENSE':'assets/timezones-DATA_LICENSE','/':'index.html','/assets/wallet_builder.js':'assets/wallet_builder.js','/assets/builder_values.js':'assets/builder_values.js','/assets/builder.js':'assets/builder.js','/assets/style.css':'assets/style.css','/assets/app.js':'assets/app.js','/assets/history.js':'assets/history.js','/assets/fees.js':'assets/fees.js','/assets/node_blocks.js':'assets/node_blocks.js','/assets/mempool_blocks.css':'assets/mempool_blocks.css','/assets/family.js':'assets/family.js','/assets/descriptors.js':'assets/descriptors.js','/assets/logo.svg':'assets/logo.svg'}
             if path not in files:return self.json({'error':'Not found'},404)
             file=ROOT/files[path]
             body=render_html().encode() if path=='/' else file.read_bytes();self.send_response(200)
@@ -730,14 +740,18 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                 if path.startswith('/api/addresses/') and length>4096:raise ValueError('Address Book request is too large.')
                 if path.startswith('/api/mobile/') and length>16384:raise ValueError('Mobile management request is too large.')
                 if length<0 or length>MAX_FILE:raise ValueError('File is too large (maximum 256 MB per file)')
+                if path.startswith('/api/auth/') and length>16384:raise ValueError('Authentication request is too large.')
                 body=self.rfile.read(length)
                 if len(body)!=length:raise ValueError('Incomplete upload')
+                if not session.user() and not path.startswith('/api/auth/') and path not in ('/api/logout','/api/login'):
+                    bootstrap=path in ('/api/users/save','/api/profile/load','/api/profile/clear') and not FamilyStore(session.preferences_path).snapshot()['users']
+                    if not bootstrap:raise ValueError('Log in with your account password first.')
                 if path in ('/api/profile/load','/api/profile/clear'):
                     if any(s.status in {'running','waiting'} for s in list(sessions.sessions.values())):raise ValueError('Finish or cancel active processes before replacing or clearing the shared profile.')
                     manager=ProfileArchive(session.preferences_path)
                     if path=='/api/profile/load':manager.load(parse_qs(urlsplit(self.path).query).get('name',[''])[0],body)
                     else:manager.replace()
-                    discovery.reset();fee_service.close();sessions.mobile.reset();sessions.close_all();sessions.user_activity.clear();sessions.nodes.reset()
+                    discovery.reset();fee_service.close();sessions.mobile.reset();sessions.auth.reset();sessions.close_all();sessions.user_activity.clear();sessions.nodes.reset()
                     fee_service=FeeService(sessions.nodes,busy=lambda:any(s.status in {'running','waiting'} for s in list(sessions.sessions.values())))
                     fee_service.log('Profile replaced; fee service reset and ready for new node connections.')
                     return self.json({'reset':True})
@@ -751,6 +765,17 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                     if slot=='bitaroo' or account_id(slot) is not None:raise ValueError('Upload Bitaroo PDFs together as one validated package.')
                     return self.json(session.upload(slot,name,body))
                 data=json.loads(body or b'{}',parse_float=Decimal) if path=='/api/nodes/rpc' else json.loads(body or b'{}')
+                if path.startswith('/api/auth/'):
+                    if path=='/api/auth/info':
+                        if set(data)!={'user_id'}:raise ValueError('Choose a user for password authentication.')
+                        return self.json(sessions.auth.metadata(data['user_id']))
+                    if path=='/api/auth/start':return self.json(sessions.auth.start(session.token,data))
+                    if path=='/api/auth/register':return self.json(sessions.auth.registration(session.token,data))
+                    if path=='/api/auth/finish':
+                        uid=sessions.auth.finish(session.token,data)
+                        result=session.select_user(uid);result['session_token']=sessions.rotate(session)
+                        return self.json(result)
+                    raise ValueError('Unknown authentication endpoint.')
                 if path.startswith('/api/mobile/'):
                     if not session.user():raise ValueError('Select a user first.')
                     if path=='/api/mobile/pair':return self.json(sessions.mobile.invite(session.user_id,data.get('ssh')))
@@ -906,7 +931,7 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                 if path=='/api/messages/send':
                     if not session.user():raise ValueError('Select a family user first.')
                     return self.json(WorkflowStore(session.preferences_path).send_message(session.user_id,data.get('user_id'),data.get('text')))
-                if path=='/api/login':return self.json(session.select_user(data.get('user_id')))
+                if path=='/api/login':raise ValueError('Use password authentication to log in.')
                 if path=='/api/logout':return self.json(session.select_user(None))
                 if path=='/api/users/save':
                     store.save_user(data.get('name',''),data.get('colour','green'),data.get('id'),data.get('revision'),gender=data.get('gender'),date_of_birth=__import__('preferences').validate_birth_date(data.get('date_of_birth')));return self.json(session.family())
@@ -917,6 +942,7 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                     else:
                         if any(w['owner_id']==target for w in BuilderWorkspace(session.preferences_path).read()['workspaces'].values()):raise ValueError('Finish or cancel this user’s active builders before deleting the profile.')
                         store.delete_user(target,data.get('revision'))
+                    sessions.auth.prune_users({u['id'] for u in store.snapshot()['users']})
                     WorkflowStore(session.preferences_path).prune_users([u['id'] for u in store.snapshot()['users']])
                     if path=='/api/config/reset':DescriptorStore(session.preferences_path).path.unlink(missing_ok=True)
                     for s in list(sessions.sessions.values()):

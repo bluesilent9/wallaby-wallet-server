@@ -109,15 +109,16 @@ def finish(hub,user,height):
         detected=signers(hub,w)
         if not detected['complete'] and all(role['detected'] for role in detected['roles']):raise ValueError('Signer verification is updating. Wait for the current check to finish before returning to Transaction Builder.')
         if not detected['complete']:raise ValueError('Every existing signer must be detected before refreshing this vault. Connect each signing Agent and load every required archive disc. If a signer is lost, create a new wallet and transfer funds using the remaining signing quorum.')
+        participants={}
+        public_before={}
+        for role in detected['roles']:
+            participants.setdefault(role['node_id'],{'hostname':role['hostname'],'wallets':[]})['wallets'].append(role['wallet_name'])
+        peer_transport=hub.relay.requirements(participants) if len(r['roles'])>1 else None
         preview=proposed(hub.config,w)
         if preview and preview['vault_height']!=height:raise ValueError('The vault height differs from the Address Book preview. Save the updated height before continuing.')
         hub.registry.diagnostic_log.append('Vault refresh','All existing signers verified; checking the reserved receiving address. workspace='+w['id'][:12])
         d=Destinations(hub.config).create(hub.registry,user,r['source'],height,**({'reserved_index':preview['index']} if preview else {}))
         if preview and d['address']!=preview['address']:raise ValueError('The proposed vault address changed. No policy was sent.')
-        participants={}
-        public_before={}
-        for role in detected['roles']:
-            participants.setdefault(role['node_id'],{'hostname':role['hostname'],'wallets':[]})['wallets'].append(role['wallet_name'])
         previous={__import__('node_wallets').NodeWalletLoader.descriptor_key(row['desc']) for row in public_rows(refresh_wallet(hub.config,base_wallet(hub.config,r['source'])),pair=True)}
         for node in hub.registry.snapshot()['nodes']:
             inv=hub.inventories.get(node['id'],{})
@@ -132,7 +133,7 @@ def finish(hub,user,height):
         for node,participant in participants.items():
             accounts=hub.disc_signers.private_inventory(node,display=True)
             public_before[node]={a['name']:[row['desc'] for row in a['raw']['descriptors']] for a in accounts if a['name'] in participant['wallets']}
-        store=Destinations(hub.config);saved=store.read();saved['destinations'][d['id']].update(workspace_id=tx['id'],archive_roles=[],approval_nodes=list(participants),approval_wallets={node:row['wallets'] for node,row in participants.items()},approval_public_before=public_before,renewal_workspace_id=w['id']);store.write(saved)
+        store=Destinations(hub.config);saved=store.read();saved['destinations'][d['id']].update(**({'relay_peer_transport':peer_transport} if peer_transport else {}),workspace_id=tx['id'],archive_roles=[],approval_nodes=list(participants),approval_wallets={node:row['wallets'] for node,row in participants.items()},approval_public_before=public_before,renewal_workspace_id=w['id']);store.write(saved)
         # Save the exact reservation and participants before delivery. Reloading
         # never allocates another address or silently drops an offline signer.
         state=work.read();state['workspaces']['wallet']['renewal']['approval']={'destination':d['id'],'height':height,'participants':participants};work.write(state)

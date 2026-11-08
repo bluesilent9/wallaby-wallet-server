@@ -66,7 +66,7 @@ def schedule(transfers,state):
         if not all(current_agent(hub,n) for n in nodes):
             for row in rows:row['queue_visible']=False
             continue
-        if any(r.get('proposal') and r['proposal'].get('transfer_version')!=2 for r in rows):
+        if any(r.get('proposal') and r['proposal'].get('transfer_version') not in (2,3) for r in rows):
             for row in rows:row.update(state='error',queue_visible=False,message='Old request protocol. Reconcile the local Agents and start a new transfer attempt.')
             continue
         if not any(r.get('queue_v2') for r in rows):
@@ -74,14 +74,16 @@ def schedule(transfers,state):
             for row in rows:
                 row.update(queue_v2=True,challenge=challenge,base_sent=0,active_pair=False)
         permission=hub.permissions.permits(receiver['node_id'],receiver['public_wallet'])
-        active=hub.permissions.allows_offer(receiver['node_id'],receiver['public_wallet']) and nodes<=ready.keys() and all(current_agent(hub,n) and 'wallet_transfer' in hub.caps.get(n,set()) and state['nodes'].get(n,{}).get('ipv6') for n in nodes)
+        relay_required=not source.get('proposal') or source['proposal'].get('transfer_version')==3
+        relay_ready=hub.relay.mesh(nodes)['ready'] and all('wallet_relay_v1' in hub.caps.get(n,set()) for n in nodes) if relay_required else False
+        active=hub.permissions.allows_offer(receiver['node_id'],receiver['public_wallet']) and nodes<=ready.keys() and all(current_agent(hub,n) and 'wallet_transfer' in hub.caps.get(n,set()) and (relay_ready if relay_required else state['nodes'].get(n,{}).get('ipv6')) for n in nodes)
         active=active and receiver['state']!='complete' and not any(r['state'] in ('denied','error') for r in rows)
         if active and not source.get('proposal'):
             active=all(hub.registry.health.status(ready[n]).get('state')=='ready' for n in nodes)
             if active:
                 for row in rows:row['proposal']=hub.transfer_proposal(state,row)
         # Frozen endpoints cannot silently change when a node reconnects elsewhere.
-        if active:
+        if active and not relay_required:
             active=all(row.get('proposal') and row['proposal']['node_ipv6']==state['nodes'][row['node_id']]['ipv6'] and row['proposal']['peer']['ipv6']==state['nodes'][row['peer_id']]['ipv6'] for row in rows)
         # An immutable signed public review belongs to this paired request,
         # not to a 15-minute session. Agent 28 re-verifies the exact binding and

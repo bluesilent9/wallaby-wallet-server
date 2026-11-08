@@ -107,7 +107,10 @@ class GroupedApproval(unittest.TestCase):
   import os,sys
   source=Path(os.environ.get('WALLABY_AGENT_SOURCE','/nonexistent'))
   if not (source/'policy_refresh_group.py').exists():self.skipTest('Matching Agent grouped-refresh source not available')
-  self.begin();node=next(iter(self.rows));proposals(self.hub,node);path=Path(self.f.f.tmp.name)/'agent-request.json';path.write_text(json.dumps(self.rows[node]['proposal']));root=Path(self.f.f.tmp.name)/'actual-agent'
+  self.begin()
+  from relay_fixtures import persisted_refresh_v1
+  persisted_refresh_v1(self)
+  node=next(iter(self.rows));proposals(self.hub,node);path=Path(self.f.f.tmp.name)/'agent-request.json';path.write_text(json.dumps(self.rows[node]['proposal']));root=Path(self.f.f.tmp.name)/'actual-agent'
   script="""import json,sys\nfrom types import SimpleNamespace\nsys.path.insert(0,sys.argv[1])\nfrom approval_store import Store,digest\nfrom policy_refresh_group import received\nfrom policy_refresh import Refresh\ns=Store(sys.argv[3]);p=json.load(open(sys.argv[2]));s.receive(p);received(s,p);Refresh(None,s,SimpleNamespace(loaded={})).deny(digest(p));print(json.dumps(list(s.read()['outbox'].values())))\n"""
   items=json.loads(subprocess.check_output([sys.executable,'-c',script,str(source),str(path),str(root)],text=True));by_kind={item['kind']:item['payload'] for item in items};self.hub.permissions.live[node]['identity']=by_kind['wallet_policy_refresh_receipt']['public_key'];accept_receipt(self.hub,node,by_kind['wallet_policy_refresh_receipt']);self.assertEqual(self.target(node)['colour'],'amber');accept(self.hub,node,by_kind['wallet_policy_refresh_result']);self.assertNotIn('wallet',self.work.read()['workspaces']);self.assertTrue(self.work.read()['cancellations'])
  def test_funded_retention_is_not_misreported_as_policy_or_disc_destruction(self):

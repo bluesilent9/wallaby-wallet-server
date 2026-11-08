@@ -82,6 +82,8 @@ class SignerSync(ceremony.Ceremony):
             pub=self.pub(n);challenge=self.setup.read()['challenges'][n['node_id']]
             self.setup.accept(n['node_id'],'wallet_setup_identity',self.sign(n,{'version':1,'challenge':challenge,'public_key':pub,'fingerprint':fingerprint(pub),'hostname':'Producing Agent'}))
         w=BuilderWorkspace(self.config).start(self.user,'wallet');nodes=(self.a,self.b,c,self.a,self.b)
+        from relay_fixtures import signed_mesh
+        signed_mesh(self)
         result=self.setup.start(self.user,{'name':'Invented 3 of 5','threshold':3,'height':1000000,'fingerprints_compared':True,'roles':[{'node_id':n['node_id'],'name':'Independent role '+str(i+1),'storage':'node' if i<3 else 'disc'} for i,n in enumerate(nodes)]},w['id'])
         h=result['sessions'][-1]['id'];row=self.setup.read()['sessions'][h]
         for i,n in enumerate(nodes):

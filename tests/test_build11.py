@@ -27,6 +27,8 @@ class Ceremony(Setup):
         self.setup.discover()
         for n in (self.a,self.b):
             pub=self.pub(n);self.hub.permissions.live[n['node_id']]['identity']=pub;challenge=self.setup.read()['challenges'][n['node_id']];self.setup.accept(n['node_id'],'wallet_setup_identity',self.sign(n,{'version':1,'challenge':challenge,'public_key':pub,'fingerprint':fingerprint(pub),'hostname':'Example Agent'}))
+        from relay_fixtures import signed_mesh
+        signed_mesh(self)
     def pub(self,n):return ' '.join(self.keys[n['node_id']].with_suffix('.pub').read_text().split()[:2])
     def sign(self,n,message):
         p=self.folder/'message';p.write_text(json.dumps(message,sort_keys=True,separators=(',',':'),ensure_ascii=True));p.with_suffix('.sig').unlink(missing_ok=True);subprocess.run(['ssh-keygen','-Y','sign','-f',str(self.keys[n['node_id']]),'-n','wallaby-wallet-setup-v1',str(p)],capture_output=True,check=True)
@@ -52,7 +54,7 @@ class Ceremony(Setup):
         state=self.setup.read();self.assertEqual(state['sessions'][h]['state'],'ready');complete=self.setup.proposals(self.a['node_id'],self.a['connection_token'])[0];self.assertEqual(complete['kind'],'wallet_setup_complete');self.assertEqual(len(complete['acknowledgements']),3);validate_archive(self.config,state,{self.user})
         import os,sys
         source=os.environ.get('WALLABY_AGENT_SOURCE')
-        if source:
+        if source and row['proposal']['version']==1:
             path=self.folder/'agent-check.json';path.write_text(json.dumps({'row':state['sessions'][h],'completion':complete}));result=json.loads(subprocess.check_output([sys.executable,str(Path(__file__).with_name('agent_setup_runner.py')),source,str(path)]));self.assertTrue(result['completion_authenticated'])
         bad=copy.deepcopy(state);bad['sessions'][h]['acks'].pop(digest(backup))
         with self.assertRaises(ValueError):validate_archive(self.config,bad,{self.user})

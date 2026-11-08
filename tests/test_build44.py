@@ -10,7 +10,7 @@ class Progress(unittest.TestCase):
    def req(method,url):
     c=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=5);c.request(method,url,'{}' if method=='POST' else None,{'X-Session-Token':session.token,'Content-Type':'application/json'});r=c.getresponse();body=json.loads(r.read());c.close();return r.status,body
    try:
-    self.assertEqual(req('GET','/api/wallet-builder')[0],400);session.user_id=uid
+    self.assertEqual(req('GET','/api/wallet-builder')[0],401);session.user_id=uid
     self.assertFalse(pool.nodes.ready_for_builders());code,data=req('GET','/api/wallet-builder');self.assertEqual(code,200,data);self.assertEqual(data['nodes'],[]);self.assertEqual(data['sessions'],[])
     code,data=req('POST','/api/wallet-builder/discover');self.assertEqual(code,400);self.assertIn('synchronised',data['error'])
    finally:server.shutdown();server.server_close();thread.join(3)
