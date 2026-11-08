@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+# Stop both identities before dpkg replaces files or the profile moves.
+if [ -d /run/systemd/system ]; then
+    if systemctl is-active --quiet wallaby-dashboard.service; then systemctl stop wallaby-dashboard.service; fi
+    if systemctl is-active --quiet wallaby-wallet-server.service; then systemctl stop wallaby-wallet-server.service; fi
+    systemctl disable wallaby-dashboard.service 2>/dev/null || true
+fi

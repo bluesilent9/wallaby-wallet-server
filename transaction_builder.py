@@ -1,0 +1,73 @@
+"""Stage-one public planning catalogue. No coin selection, signing or broadcasting."""
+from decimal import Decimal
+from threading import RLock
+
+# PSBT construction also uses this lock while loading the isolated tax module.
+_HISTORICAL_LOCK=RLock()
+from descriptor_store import DescriptorStore
+from builder_history import planning_history
+from preferences import FamilyStore,resource_id
+from address_book import valid_address
+
+def funded_vault(wallet,chain):
+    """A known, unspent output under a mandatory vault policy, expired or not."""
+    spent={(i['txid'],i['vout']) for t in chain.get('transactions',{}).values() for i in t.get('inputs',[]) if i.get('txid')}
+    for row in wallet.get('vault_evidence',[]):
+        tx=chain.get('transactions',{}).get(row['txid'],{});n=row['vout'];outputs=tx.get('outputs',[])
+        if (row['txid'],n) not in spent and 0<=n<len(outputs) and outputs[n]['value']>0:return True
+    return False
+
+def builder_catalog(session,price=None,*,view_only=False):
+    if not view_only and not session.access().get('templates_ready',session.access().get('ownership_ready')):raise ValueError('Complete Ownership and save all assignments first.')
+    family=session.family();store=FamilyStore(session.preferences_path).snapshot()
+    public_store=DescriptorStore(session.preferences_path).read();chain=planning_history(session,public_store)
+    owners={r['id']:r for r in family['ownership']};users={u['id']:u for u in family['users']}
+    entries={e['id']:e for e in (family.get('address_book') or {}).get('entries',[]) if e.get('kind') in ('descriptor','wallet','bitaroo')}
+    balances={}
+    # Ownership persisted these exact, reconstructed balances. Opening a
+    # template must not parse the ODS or repeat blockchain requests.
+    run=store.get('ownership_runs',{}).get(session.user_id,{})
+    balances={resource_id('wallet',name):amount for name,amount in run.get('historical_balances',{}).items()}
+    extinct_ids=__import__('wallet_lifecycle').extinct_ids(session.preferences_path)
+    cards={}
+    def add(ident,kind,name,balance,send=False):
+        entry=entries.get(ident,{})
+        address=next((a['address'] for a in entry.get('addresses',[]) if valid_address(a.get('address'))),None) if entry.get('status')=='available' else None
+        own=owners.get(ident,{})
+        owner_id=entry.get('owner_id') or own.get('owner_id');user=users.get(owner_id,{})
+        if kind=='bitaroo':name='Bitaroo SMSF Exchange' if own.get('smsf') else 'Bitaroo Exchange'
+        amount=Decimal(balance) if balance is not None else None
+        aud=str(amount*Decimal(price['aud_per_btc'])) if amount is not None and price else None
+        cards[ident]={'id':ident,'kind':kind,'name':name,'owner_id':owner_id,'owner':user.get('name','Someone else / external'),'colour':user.get('colour','neutral'),'btc':str(amount) if amount is not None else None,'aud':aud,'address':address,'can_send':send,'smsf':bool(own.get('smsf')),'can_receive':bool(address)}
+    for wallet in chain['wallets']:
+        if wallet.get('extinct') or wallet['id'] in extinct_ids:continue
+        ident=resource_id('descriptor',wallet['id']);own=owners.get(ident,{})
+        groups={}
+        for r in wallet['records']:groups.setdefault(r['txid'],[]).append(r)
+        sats=sum(sum(r['sats'] for r in rows)-(0 if any(r['fee_only'] for r in rows) else max(r['fee_sats'] for r in rows)) for rows in groups.values())
+        balance=Decimal(sats)/Decimal(100000000)+Decimal(wallet.get('pending_btc','0'))
+        add(ident,'descriptor',own.get('name') or wallet['name'],None if wallet.get('history_unavailable') else str(balance),True)
+    for ident,entry in entries.items():
+        if ident in cards or entry['kind']=='descriptor' or ident in {resource_id('descriptor',uid) for uid in extinct_ids}:continue
+        if entry['kind']=='wallet':
+            balance=balances.get(ident)
+            if balance is None or Decimal(balance)==0:continue
+            add(ident,'wallet',owners.get(ident,{}).get('name') or entry['source'],balance)
+        elif entry['kind']=='bitaroo':
+            uid=entry.get('owner_id') or entry['source'].removesuffix(':smsf');rows=store.get('ownership_runs',{}).get(uid,{}).get('bitaroo_smsf_data' if entry.get('smsf') else 'bitaroo_data',{}).get('btc_rows',[])
+            last=max(enumerate(rows),key=lambda x:(x[1]['utc'],x[0]))[1] if rows else None
+            add(ident,'bitaroo','Bitaroo Exchange',last['balance'] if last else None)
+    for row in cards.values():
+        if row['kind']=='descriptor':
+            uid=next((w['id'] for w in chain['wallets'] if resource_id('descriptor',w['id'])==row['id']),None)
+            row['disc_only']=family.get('wallet_disc_traits',{}).get(uid,False)
+            row['watch_only']=family.get('wallet_traits',{}).get(uid,False)
+            evidence=next((w for w in public_store['wallets'] if w['id']==uid),{})
+            row['funded_vault']=funded_vault(evidence,chain);row['has_vault']=evidence.get('has_vault',False);row['multisig']=__import__('policy_accounts').multisig_summary(evidence.get('raw',{'descriptors':[]}))
+    from unsigned_psbt import public_change_candidate
+    for w in chain['wallets']:
+        if w.get('extinct'):continue
+        ident=resource_id('descriptor',w['id'])
+        try:cards[ident]['change_script_size']=len(public_change_candidate(store=public_store,chain=chain,wallet_id=w['id'])[0].data)
+        except ValueError:pass
+    return {'wallets':list(cards.values()),'price':price,'scanned_utc':chain['scanned_utc']}

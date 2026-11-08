@@ -1,0 +1,12 @@
+/* Wallet Server coordinates public identities; Agents approve every mutation. */
+window.WallabyRenames=(()=>{
+async function post(api,path,data){const r=await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const p=await r.json();if(p.error)throw Error(p.error);return p;}
+function control({el,button,wallet,api,family,toast,refresh}){
+ const owner=(family.ownership||[]).find(r=>r.kind==='descriptor'&&r.source===wallet.descriptor_id),active=(family.rename_queue?.operations||[]).some(r=>r.state==='active'&&r.resource_id===owner?.id),enabled=!wallet.extinct&&wallet.kind!=='exchange'&&owner&&owner.owner_id===family.user?.id;
+ const b=button('Rename','small outline',async()=>{try{
+  const r=await api('/api/wallets/rename-names?wallet_id='+encodeURIComponent(owner.id)),current=await r.json();if(current.error)throw Error(current.error);
+  const filename=el('input',{type:'text',value:current.filename,maxLength:100,disabled:active,'aria-label':'Wallet Filename'}),label=el('input',{type:'text',value:current.dashboard_name,maxLength:1000,'aria-label':'Wallet Wallet Server Name'}),feedback=el('p',{role:'alert'}),dialog=el('dialog',{class:'wallaby-dialog wallet-rename-dialog'},el('h2',{},'Rename '+wallet.name),el('p',{},'The Wallet Server name changes here only. Changing the filename requests local approval on every holding Agent; archive copies require the existing replacement-disc process. Watch-only copies keep the _watch suffix.'),el('label',{},'Wallet Filename',filename),active?el('p',{},'Finish the active filename rename before changing the filename again.'):null,el('label',{},'Wallet Wallet Server Name',label),feedback),close=()=>{dialog.close();dialog.remove();};
+  dialog.append(button('Cancel','outline',close),button('Save names','primary',async()=>{try{const result=await post(api,'/api/wallets/rename',{wallet_id:owner.id,filename:filename.value.trim()===current.filename?null:filename.value.trim(),dashboard_name:label.value.trim()});close();await refresh();toast(result.filename_queued?'Filename rename queued for local Agent approval. Wallet Server name saved.':'Wallet Server name saved.');}catch(e){feedback.textContent=e.message;}}));document.body.append(dialog);dialog.showModal();label.focus();
+ }catch(e){toast(e.message);}},'rename');b.disabled=!enabled;b.title=enabled?'Change the wallet filename or its Wallet Server name':'Select the wallet’s owner profile. Only active descriptor wallets can be renamed.';return b;
+}
+return {control};})();

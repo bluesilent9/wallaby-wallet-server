@@ -1,0 +1,258 @@
+"""PSBT identity, local-node eligibility and correlated approval results."""
+import base64,copy,re,time,uuid
+from decimal import Decimal
+from signed_psbt import decode,utxos,serialize,validate_upload,combine,final_transaction
+from unsigned_psbt import record
+from descriptor_store import DescriptorStore
+from descriptor_snapshot import saved_history
+from preferences import FamilyStore,resource_id
+from node_chain import NodeChain,RegistryRPC
+from vendor.embit.networks import NETWORKS
+from agent_hub import digest,equivalent
+
+
+def current_wallets(hub):
+    return DescriptorStore(hub.config).read()
+
+def eligible(hub,wallet_id,capability='partial_signing',*,display=False):
+    # Resource IDs are hashes, not reversible; resolve through the saved Ownership inventory.
+    wallet_id=__import__('builder_identity').resolve(hub.config,wallet_id)
+    snapshot=FamilyStore(hub.config).snapshot();owned=next((r for r in snapshot.get('ownership',[]) if r['id']==wallet_id and r['kind']=='descriptor'),None)
+    if not owned:return []
+    catalog=current_wallets(hub);wanted=next((w for w in catalog['wallets'] if w['id']==owned['source']),None)
+    if not wanted:return []
+    result=[]
+    for node in hub.registry.presence()['nodes']:
+        health=node.get('blockchain',{}).get('state');checking=display and health=='checking' and any(c['node_id']==node['id'] and hub.registry.health.values.get(c['token'],{}).get('state')=='ready' for c in hub.registry.connections.values())
+        if not node['rpc_ready'] or health!='ready' and not checking or capability not in hub.caps.get(node['id'],set()):continue
+        inventory=__import__('disc_signers').inventory(hub,node['id'],display=display)
+        if not (inventory.get('complete') or inventory.get('loaded_complete')):continue
+        replicas=[w for w in inventory['wallets'] if w['private_keys_enabled'] and not w['scanning'] and equivalent(wanted['raw'],w['raw'])]
+        from policy_accounts import signing_account
+        monitors=[w for w in inventory['wallets'] if equivalent(wanted['raw'],w['raw'])]
+        if monitors:replicas += [w for w in inventory['wallets'] if w['private_keys_enabled'] and not w['scanning'] and any(signing_account(w,m) for m in monitors)]
+        if capability=='wallet_retirement':replicas=[w for w in replicas if not w.get('signing_only')]
+        if capability=='wallet_retirement' and any(signing_account(w,m) for w in inventory['wallets'] for m in monitors):replicas=[m for m in monitors if not m.get('signing_only')]
+        seen=set()
+        for replica in replicas:
+            if replica['name'] in seen:continue
+            seen.add(replica['name']);signer_id=digest({'node':node['id'],'wallet':replica['name'],'policies':sorted(__import__('node_wallets').NodeWalletLoader.descriptor_key(r['desc']) for r in replica['raw']['descriptors'])})
+            result.append({'id':node['id'],'signer_id':signer_id,'hostname':node['hostname'],'wallet':replica['name'],**({'archive_id':replica['archive_id']} if replica.get('archive_id') else {}),**({'needs_verification':True} if inventory.get('display_only') or checking else {})})
+    return result
+
+
+def output_bindings(hub,node,row):
+    # Known local destinations get their independently approved vault proof.
+    # Other signers review an external address, never a Wallet Server ownership claim.
+    from node_wallets import NodeWalletLoader
+    available={NodeWalletLoader.descriptor_key(r['desc']) for w in __import__('disc_signers').inventory(hub,node).get('wallets',[]) for r in w['raw']['descriptors']}
+    return [p for p in row.get('output_policies',[]) if NodeWalletLoader.descriptor_key(p['descriptor']) in available]
+
+
+def validate_export(hub,payload,lease):
+    from fee_planner import known_scripts
+    from vault_records import public_vault
+    public_vault(payload['vault'])
+    text=payload['psbt']
+    if not isinstance(text,str) or len(text)>2*1024*1024:raise ValueError('Invalid exported PSBT size.')
+    if not re.fullmatch('[0-9a-f]{64}',str(payload['transaction_hash'])):raise ValueError('Invalid advisory transaction hash.')
+    document=decode(base64.b64decode(text,validate=True));catalog=current_wallets(hub);history=saved_history(hub.config,catalog)
+    chain=NodeChain(RegistryRPC(hub.registry),catalog);seen=set();input_wallets=[];total=0
+    scripts=known_scripts(history);snapshot=FamilyStore(hub.config).snapshot();owners={r['source']:r for r in snapshot['ownership'] if r['kind']=='descriptor' and r.get('confirmed')}
+    wallets={w['id']:w for w in catalog['wallets']};cards={};source_totals={};unspent=[]
+    for index,vin in enumerate(document['tx'].vin):
+        key=(vin.txid.hex(),vin.vout)
+        if key in seen:raise ValueError('Duplicate exported transaction input.')
+        seen.add(key);prev=chain.raw(key[0]);output=prev.vout[vin.vout] if vin.vout<len(prev.vout) else None
+        if output is None:raise ValueError('Invalid exported previous output.')
+        claimed=document['inputs'][index].get(b'\x00')
+        if claimed:
+            from signed_psbt import bounded_transaction
+            checked=bounded_transaction(claimed)
+            if checked.txid()!=prev.txid() or vin.vout>=len(checked.vout) or checked.vout[vin.vout].serialize()!=output.serialize():raise ValueError('Exported PSBT previous transaction differs from the node.')
+        document['inputs'][index][b'\x00']=prev.serialize()
+        if b'\x01' in document['inputs'][index] and document['inputs'][index][b'\x01']!=output.serialize():raise ValueError('Exported PSBT input value differs from the node.')
+        matches=[uid for uid,values in scripts.items() if output.script_pubkey.data.hex() in values]
+        if len(matches)!=1:raise ValueError('Refresh Ownership: an exported funding input cannot be identified uniquely.')
+        uid=matches[0];owner=owners.get(uid)
+        if not owner or owner.get('owner_id')!=lease['user_id']:raise ValueError('The open diagram profile does not own this exported transaction source.')
+        rid=resource_id('descriptor',uid);input_wallets.append(rid);source_totals[rid]=source_totals.get(rid,0)+output.value;total+=output.value
+        cards[rid]={'id':rid,'name':__import__('wallet_names').dashboard_name(owner),'owner_id':owner['owner_id'],'owner':next(u['name'] for u in snapshot['users'] if u['id']==owner['owner_id']),'colour':'neutral','kind':'descriptor','btc':str(Decimal(source_totals[rid])/100000000),'aud':None,'can_send':True,'can_receive':True,'address':output.script_pubkey.address(NETWORKS['main'])}
+        coin=chain.rpc.call(lease['node_id'],'gettxout',[key[0],key[1],True]);unspent.append(isinstance(coin,dict) and coin.get('confirmations',0)>0)
+    if not input_wallets:raise ValueError('A vault proposal needs funding inputs.')
+    from node_wallets import NodeWalletLoader
+    root=next((w for w in catalog['wallets'] if any(NodeWalletLoader.descriptor_key(r['desc'])==NodeWalletLoader.descriptor_key(payload['vault']['source']['descriptor']) for r in w['raw']['descriptors'])),None)
+    if not root or owners.get(root['id'],{}).get('owner_id')!=lease['user_id']:raise ValueError('The vault source policy does not belong to this profile.')
+    if not all(unspent):raise ValueError('An exported transaction input is no longer unspent.')
+    fee=total-sum(o.value for o in document['tx'].vout)
+    if not 0<fee<=total:raise ValueError('The vault transaction needs a positive, valid network fee.')
+    # Composition is permitted only before anybody signs. Never discard an
+    # existing signature or relax its sighash to make a proposal composable.
+    if any(any(k[0] in (2,7,8,19,20) for k in fields) for fields in document['inputs']):raise ValueError('Send an unsigned vault PSBT from the updated Agent before combining payments.')
+    if document['tx'].version!=2:raise ValueError('Vault proposals require transaction version 2.')
+    original=base64.b64encode(serialize(document)).decode();proofs={}
+    vault_address=payload['vault']['address'];vault_value=0;edges=[]
+    # Preserve the signed transaction as a whole. Display edges do not claim
+    # that Bitcoin itself maps a particular input to a particular output.
+    source=sorted(cards)[0]
+    for n,output in enumerate(document['tx'].vout):
+        address=output.script_pubkey.address(NETWORKS['main']);ident='vault-output-'+str(n)
+        if address==vault_address:vault_value+=output.value
+        matches=[uid for uid,values in scripts.items() if output.script_pubkey.data.hex() in values]
+        owner=owners.get(matches[0]) if len(matches)==1 else None
+        name=__import__('wallet_names').dashboard_name(owner) if owner else (__import__('wallet_names').dashboard_name(owners[root['id']])+' Vault' if address==vault_address else address)
+        cards[ident]={'id':ident,'name':name,'kind':'wallet','owner_id':owner.get('owner_id') if owner else lease['user_id'] if address==vault_address else None,'owner':next((u['name'] for u in snapshot['users'] if owner and u['id']==owner.get('owner_id')),''),'colour':'neutral','btc':'0','aud':None,'address':address,'can_send':False,'can_receive':True}
+        edges.append({'from':source,'to':ident,'amount_sats':str(output.value),'fee_rate':'0','locked':True,'output_index':n})
+    if not vault_value:raise ValueError('The exported PSBT does not fund the declared vault address.')
+    from fee_planner import input_weight,estimate_size
+    sizes=[]
+    for output,fields in zip(utxos(document),document['inputs']):
+        try:weight,witness=input_weight(output.script_pubkey.data.hex())
+        except ValueError:
+            witness_script=fields.get(b'\x05')
+            if not witness_script:raise ValueError('Vault input lacks its witness policy.')
+            import hashlib
+            if output.script_pubkey.data!=b'\x00\x20'+hashlib.sha256(witness_script).digest():raise ValueError('Vault input witness script does not match its previous output.')
+            # Only the supported mandatory-height policy can enter this workflow.
+            from signed_psbt import vault_witness_policy
+            pub,height=vault_witness_policy(witness_script)
+            if not height<=document['tx'].locktime<500000000 or any(i.sequence==0xffffffff for i in document['tx'].vin):raise ValueError('Vault input locktime is not satisfied by the proposal.')
+            weight,witness=164+1+1+73+len(witness_script)+1,True
+        sizes.append({'weight':weight,'witness':witness})
+    size=estimate_size(sizes,[o.script_pubkey.data for o in document['tx'].vout]);rate=Decimal(fee)/size
+    from fee_planner import continuation_status
+    payments={}
+    for o in document['tx'].vout:
+        address=o.script_pubkey.address(NETWORKS['main']);payments[address]=payments.get(address,0)+o.value
+    ready,message=continuation_status(payments,fee)
+    if not ready or size>100000:raise ValueError(message if not ready else 'The vault proposal exceeds standard transaction size.')
+    edges.append({'from':source,'to':'network-fee','amount_sats':'0','fee_rate':format(rate.quantize(Decimal('.00000001')),'f'),'locked':True,'fee_sats':str(fee)})
+    original_edges=edges;edges=[];ids=sorted(source_totals)
+    fee_parts={u:fee*source_totals[u]//total for u in ids}
+    for u in ids[:fee-sum(fee_parts.values())]:fee_parts[u]+=1
+    budgets={u:source_totals[u]-fee_parts[u] for u in ids}
+    for e in original_edges:
+        if e['to']=='network-fee':continue
+        remaining=int(e['amount_sats'])
+        for u in ids:
+            amount=min(remaining,budgets[u])
+            if amount:edges.append(dict(e,**{'from':u,'amount_sats':str(amount)}));budgets[u]-=amount;remaining-=amount
+        if remaining:raise ValueError('Vault proposal display allocation failed conservation.')
+    for u in ids:
+        if fee_parts[u]:edges.append({'from':u,'to':'network-fee','amount_sats':'0','fee_rate':format((Decimal(fee_parts[u])/size).quantize(Decimal('.00000001')),'f'),'locked':True,'fee_sats':str(fee_parts[u])})
+    nodes=[{'id':uid,'x':40 if uid in input_wallets else 500,'y':40+n*210} for n,uid in enumerate(cards)]+[{'id':'network-fee','x':880,'y':40}]
+    return {'psbt':original,'signed_proofs':proofs,'input_wallets':input_wallets,'wallets':list(cards.values()),'diagram':{'nodes':nodes,'edges':edges},'estimate':{'can_continue':True,'total_fee_sats':str(fee),'vbytes':size,'combined_rate':format(rate,'f'),'validation_message':'Unsigned vault proposal verified. Its fixed payments can be combined with other wallets before signing.'},'vault':payload['vault'],'immutable':True,'txid':document['tx'].txid().hex(),'input_sizes':sizes,'unsigned':True,'outpoints':[list(k) for k in sorted(seen)]}
+
+
+def queue_sign(hub,session,job_id,wallet_id,node,signer_id=None):
+    from transaction_workflows import WorkflowStore
+    row=WorkflowStore(hub.config).job(session.user_id,job_id);wallet=next((w for w in row['wallets'] if w['id']==wallet_id),None)
+    if not wallet or row['creator_id']!=session.user_id:raise ValueError('Only the transaction creator can request Agent signatures.')
+    if row.get('cancelled') or row.get('completed') or __import__('multisig_psbt').progress(row['psbt'],row.get('signed_uploads',{}).get(wallet_id,{}).get('proofs',{}),[i for i,w in enumerate(row['input_wallets']) if w==wallet_id])['complete']:raise ValueError('This signing card is already complete or the transaction is closed.')
+    pending=next(((key,r) for key,r in hub.read()['requests'].items() if signer_id is not None and r.get('job_id')==job_id and r.get('wallet_id')==wallet_id and r.get('node_id')==node and r.get('signer_id')==signer_id and r.get('kind')=='sign_psbt_partial' and r.get('state')=='pending'),None)
+    if pending:return {'queued':True,'request_hash':pending[0],'node_id':node}
+    destination=next((n for n in eligible(hub,wallet_id,display=True) if n['id']==node and (signer_id is None or n['signer_id']==signer_id)),None)
+    if not destination:raise ValueError('This node is offline, downloading, watch-only, or needs Agent partial-signing support.')
+    if destination.get('archive_id') or destination.get('needs_verification'):__import__('disc_signers').verify_selection(hub,node,destination['wallet'],destination.get('archive_id'))
+    proposal={'kind':'sign_psbt_partial','request_id':digest({'job':job_id,'wallet':wallet_id,'node':node,'signer':destination['signer_id']}),'chain':'main','wallet':destination['wallet'],'psbt':row['psbt'],**({'vault_intents':row['vault_intents']} if row.get('vault_intents') else {}),**({'output_policies':output_bindings(hub,node,row)} if output_bindings(hub,node,row) else {})};ident=digest(proposal)
+    with hub.edit() as state:
+        prior=next((r for r in state['requests'].values() if r.get('job_id')==job_id and r.get('wallet_id')==wallet_id and r.get('signer_id')==destination['signer_id'] and r['state']=='pending'),None)
+        if prior and prior['node_id']!=node:raise ValueError('A signing request is already pending on another Agent. Resolve it there first.')
+        old=state['requests'].get(ident);queued_now=old is None or old['state'] in ('denied','error')
+        if old and old['state'] in ('denied','error'):old['state']='pending'  # Explicit human retry; Agent denial still applies.
+        state['requests'].setdefault(ident,{'kind':proposal['kind'],'node_id':node,'proposal':proposal,'job_id':job_id,'wallet_id':wallet_id,'signer_id':destination['signer_id'],'state':'pending','created_utc':hub.utc()})
+    if queued_now:hub.registry.diagnostic_log.append('Transaction delivery','Signing request queued · node='+node[:12]+' · request='+ident[:12]+' · awaiting Agent delivery and local approval')
+    return {'queued':True,'request_hash':ident,'node_id':node}
+
+
+def accept_result(hub,state,node,kind,p):
+    from transaction_workflows import WorkflowStore
+    if not isinstance(p,dict) or not {'request_hash','status'}<=set(p) or set(p)-{'request_hash','status','psbt','txid','message'} or p['status'] not in ('signed','broadcast','denied','error'):raise ValueError('Invalid Agent transaction result.')
+    request=state['requests'].get(p['request_hash'])
+    expected='sign_psbt_partial' if kind=='partial_sign_result' else 'broadcast_transaction'
+    if not request or request['node_id']!=node or request['kind']!=expected:raise ValueError('Unsolicited Agent transaction result.')
+    workflows=WorkflowStore.__new__(WorkflowStore);workflows.config=hub.config;workflows.path=data_directory(hub.config)/'transactions'/'workflows.json'
+    data=workflows._read();row=data['jobs'].get(request['job_id'])
+    # A local denial must still clear an outstanding Agent request after its
+    # Wallet Server job was cancelled; it never revives or signs that job.
+    if p['status'] in ('denied','error'):
+        request.update(state=p['status'],message=str(p.get('message',''))[:1000]);return
+    if row and row.get('cancelled'):
+        if kind=='broadcast_result':
+            row['broadcast_txid']=p.get('txid');request.update(state='complete',txid=p.get('txid'),message='Broadcast reported after Wallet Server cancellation; cancellation cannot undo it.');workflows._write(data)
+        return
+    if not row or row.get('completed'):raise ValueError('The requested transaction is closed.')
+    if kind=='partial_sign_result':
+        if p['status']!='signed' or set(p)-{'request_hash','status','psbt'} or not isinstance(p.get('psbt'),str) or len(p['psbt'])>2*1024*1024:raise ValueError('Return a bounded, partially signed PSBT.')
+        assigned=row['input_wallets'];uid=request['wallet_id'];indices=[i for i,w in enumerate(assigned) if w==uid]
+        if not indices:raise ValueError('This wallet has no inputs in the transaction.')
+        from multisig_psbt import validate_partial,progress
+        proofs,new=validate_partial(row['psbt'],p['psbt'].encode(),indices,row.get('signed_uploads',{}).get(uid,{}).get('proofs',{}))
+        if row.get('signed_uploads',{}).get(uid,{}).get('request_hash')!=p['request_hash']:
+            row.setdefault('signed_uploads',{})[uid]={'proofs':proofs,'uploaded_by':next(w['owner_id'] for w in row['wallets'] if w['id']==uid),'uploaded_utc':hub.utc(),'request_hash':p['request_hash'],'node_id':node};row['signing_revision']=row.get('signing_revision',0)+1
+    else:
+        if p['status']!='broadcast' or p.get('txid')!=request['txid']:raise ValueError('Broadcast result does not match the approved transaction.')
+        row['broadcast_txid']=p['txid'];row['broadcast_utc']=hub.utc();row['signing_revision']=row.get('signing_revision',0)+1
+    request['state']='complete';workflows._write(data)
+
+
+def queue_broadcast(hub,session,job_id,node):
+    from transaction_workflows import WorkflowStore
+    from storage import storage_lock
+    store=WorkflowStore(hub.config);row=store.job(session.user_id,job_id)
+    if row['creator_id']!=session.user_id or row.get('cancelled') or row.get('completed') or row.get('broadcast_txid'):raise ValueError('Only the creator can broadcast this active transaction once.')
+    destination=next((n for n in hub.registry.presence()['nodes'] if n['id']==node and n['rpc_ready'] and n.get('blockchain',{}).get('state')=='ready' and 'automatic_broadcast_v1' in hub.caps.get(node,set())),None)
+    if not destination:raise ValueError('Select a synchronised Agent with automatic broadcast support. Update the Agent if needed.')
+    encoded=combine(row['psbt'],row.get('signed_uploads',{}),row['input_wallets']);tx=final_transaction(encoded);txid=tx.txid().hex();proposal={'kind':'broadcast_transaction','request_id':digest({'job':job_id,'node':node}),'chain':'main','psbt':encoded,'txid':txid,**({'output_policies':output_bindings(hub,node,row)} if output_bindings(hub,node,row) else {})};ident=digest(proposal)
+    with hub.edit() as state:
+        prior=[(key,r) for key,r in state['requests'].items() if r.get('job_id')==job_id and r['kind']=='broadcast_transaction']
+        pending=next(((key,r) for key,r in prior if r['state']=='pending'),None)
+        if pending:return {'queued':True,'request_hash':pending[0],'txid':pending[1]['txid']}
+        # An explicit human retry gets a new request identity; the Agent keeps
+        # the previous error immutable and never silently repeats an uncertain send.
+        if prior:proposal['request_id']=digest({'job':job_id,'node':node,'attempt':len(prior)});ident=digest(proposal)
+        state['requests'][ident]={'kind':proposal['kind'],'node_id':node,'proposal':proposal,'job_id':job_id,'state':'pending','txid':txid,'broadcast_attempt':len(prior),'created_utc':hub.utc()}
+    return {'queued':True,'request_hash':ident,'txid':txid}
+
+
+def verify_broadcast_result(hub,node,p):
+    state=hub.read();request=state['requests'].get(p.get('request_hash')) if isinstance(p,dict) else None
+    if not request or request['node_id']!=node or request['kind']!='broadcast_transaction':raise ValueError('Unsolicited broadcast result.')
+    if p.get('status') in ('denied','error'):return
+    if p.get('txid')!=request['txid']:raise ValueError('Unexpected broadcast transaction identity.')
+    result=hub.rpc(node,'getrawtransaction',[p['txid'],False])
+    expected=final_transaction(request['proposal']['psbt']).serialize().hex()
+    if result!=expected:raise ValueError('The connected node cannot confirm the approved broadcast transaction.')
+
+from storage import data_directory
+
+
+def signing_state(hub,user,job_id,*,discover=False):
+    from transaction_workflows import WorkflowStore
+    row=WorkflowStore(hub.config).public_job(user,job_id);state=hub.read()
+    checks=getattr(hub,'disc_signers',None)
+    row['signer_check']=(checks.ensure(job_id) if discover else checks.snapshot()) if checks and row['creator_id']==user and not row.get('cancelled') and not row.get('completed') and not row.get('all_signed') else {'active':False,'nodes':[]}
+    from live_wallet_traits import disc_flags
+    discs=disc_flags(current_wallets(hub),hub.registry)
+    ownership={r['id']:r['source'] for r in FamilyStore(hub.config).snapshot()['ownership'] if r['kind']=='descriptor'}
+    for wallet in row['signing_wallets']:
+        current=__import__('builder_identity').resolve(hub.config,wallet['id']);wallet['disc_only']=discs.get(ownership.get(current),False)
+        wallet['nodes']=eligible(hub,wallet['id'],display=True) if row['creator_id']==user and not wallet['complete'] else []
+        requests=[dict(r,request_hash=k) for k,r in state['requests'].items() if r.get('job_id')==job_id and r.get('wallet_id')==wallet['id']]
+        wallet['request']=requests[-1] if requests else None
+        if wallet['request']:
+            wallet['request']={k:wallet['request'].get(k) for k in ('state','node_id','signer_id','message','request_hash')}
+        wallet['requests']=[{k:r.get(k) for k in ('state','node_id','signer_id','message','request_hash')} for r in requests]
+        pending={r.get('signer_id') for r in requests if r['state']=='pending'}
+        completed={r.get('signer_id') for r in requests if r['state']=='complete'}
+        wallet['nodes']=[n for n in wallet['nodes'] if n['signer_id'] not in pending|completed]
+        wallet['disc_help']='Load the required discs using the Agent’s Disc Operations page. Wallet Server checks loaded disc signers automatically; approve each signing request on Authorise. Private backups and passwords stay in the Agent’s protected workspace.'
+    row['broadcast_nodes']=[{'id':n['id'],'hostname':n['hostname']} for n in hub.registry.presence()['nodes'] if n['rpc_ready'] and n.get('blockchain',{}).get('state')=='ready' and 'automatic_broadcast_v1' in hub.caps.get(n['id'],set())]
+    pending=max((dict(r,request_hash=k) for k,r in state['requests'].items() if r.get('job_id')==job_id and r['kind']=='broadcast_transaction'),key=lambda r:r.get('broadcast_attempt',0),default=None)
+    row['broadcast_request']={k:pending.get(k) for k in ('state','node_id','message','txid')} if pending else None
+    return row
+
+
+def prepare_export(hub,session,export_id,diagram=None,estimate=False,workspace_id=None):
+    from vault_composition import prepare
+    return prepare(hub,session,export_id,diagram,estimate,workspace_id)

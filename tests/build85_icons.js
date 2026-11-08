@@ -1,0 +1,4 @@
+const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');const source=fs.readFileSync(path.join(process.argv[2],'app.js'),'utf8');
+const c={icon:name=>name,el:(tag,a,...children)=>({tag,a,children})};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function resourceIcons('),source.indexOf('function el(')),c);
+const icons=props=>c.resourceIcons(props).children.map(n=>n.a['data-icon-kind']).filter(Boolean);
+assert.deepEqual(icons({kind:'descriptor',has_vault:true,multisig:[{}],has_disc:true}),['wallet','vault','multisig','disc']);assert.deepEqual(icons({kind:'descriptor',has_disc:true,watch_only:true}),['wallet','eye','disc']);assert.deepEqual(icons({kind:'descriptor',disc_only:true}),['wallet','disc']);assert.deepEqual(icons({kind:'descriptor'}),['wallet']);console.log('PASS: loaded disc badge appears alongside node copies, wallet stays first, disc stays last, no duplicate disc icon.');

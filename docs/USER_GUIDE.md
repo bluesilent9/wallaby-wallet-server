@@ -1,0 +1,431 @@
+Build 28: Ownership unlocks after the public wallet list is discovered; the full historical check may continue in Terminal Activity. You can upload records immediately. Balance verification waits for complete history. Extinct synchronisation now appears as one parent with child wallet names; review and authorise it locally on each Agent. If old child denials remain, use Agent Build 24’s local cleanup control; the Wallet Server cannot clear them.
+
+Vault spending: finish a payment arrow to check the source against connected Core nodes. A fully locked vault cannot connect. A wallet with unlocked funds can connect and spend that available portion, with fees reserved from it. Send maximum and manually using the available balance warn when other funds remain locked. These yellow UTC-timestamped notices are immediately read, appear above the diagram and can be deleted from Notifications. A failed node check does not create an unchecked arrow. Final coin selection and Agent review remain authoritative.
+
+## Build 27 workflow
+
+In a wallet tooltip, **Archive this Wallet** queues a local Agent approval for persistent signing accounts; **Make Extinct** remains restricted to empty wallets. An archive request does not delete the source. Several approved wallets can share a physical archive through Agent Disc Operations. Only the Agent can confirm physical destruction of a fully replaced old disc; Wallet Server can withdraw the request. Offline Agents retain their last-known tasks until a valid reconnect snapshot.
+
+Add the same active wallet twice in Transaction Builder to create a receive-only **New Address** card. Draw a payment from its original card to this new card. In the line editor, **Vault** opens the linked Wallet Builder, which preserves existing signing keys/threshold and lets you calculate a later unlock height. **Send to Transaction Builder** returns the public destination and starts locally approved policy additions. Wait for those approvals before preparing the PSBT. Cancelling the linked editor leaves the payment unchanged; clearing Vault removes the binding without deleting existing policies. Original creation still uses **Request local Agent approvals**. Wallet Builder discovers Agent identities automatically and keeps incomplete actions disabled.
+
+An AUD line amount obtains a current quote and selects the shortest BTC decimal within 0.01%, capped at AUD0.50 (with the unavoidable half-satoshi precision floor). The quoted value and resulting amount are shown; enter BTC directly if you prefer. Amounts always use whole satoshis.
+
+Archive refresh preserves every previous policy. For a loaded disc, approve the new policy and use local Agent Disc Operations to refresh the archive. Wallet Server cannot silently move private disc keys to a persistent node wallet. Perform such a local import on the Agent first.
+
+Address Book starts with the latest receiving address. Use its arrows to view older known addresses; red text and a warning identify historical entries. This only changes the address being viewed. Confirm custodian addresses independently before using them.
+
+## Build 26 workflow updates
+
+Build 26 starts Balance Trace automatically when all ownership rows have owners. It opens Terminal Activity immediately, then returns to Wallets on completion. Reopening completed Ownership does not repeat the calculation; changing an assignment triggers verification again.
+
+Salary Builder puts the collapsed tax/SMSF assumptions inside Stage 1, and the pay schedule at the start of Stage 2. Confirm the schedule before configuring salary cards; changing it hides those cards until reconfirmed. Monthly means 12 payments, modelled on each month’s first day. Distributor choices include every active wallet, regardless of owner. Scenario BTC/AUD and target age remain at the top; the saved-quote control is removed. Each person’s card has its own pay-rise multiplier. For an independent target it multiplies salary; for a recipient it multiplies their incoming share, with combined effective shares limited to 100%.
+
+Wallets Sources now show balance/existence information: wallet-owned addresses and node names, or the latest supplied Bitaroo statement filenames. Cost provenance remains internal to the calculations and is not displayed as wallet identity.
+
+Mempool has darker green blocks and a stronger dark/light red pulse for pending blocks. BTC/vB rounds half up to a whole satoshi, with copied values matching the display. Search sits above the blocks and accepts a TXID, address or TXID:output_index. A compact input/output explorer below the blocks adapts Blockstream Esplora’s MIT-licensed presentation. Clicking an address or previous output searches in the same page. Only a pending transaction or one in the three latest blocks receives a block marker.
+
+Search uses connected Core nodes only, rotating requests and trying other nodes when a transaction is unavailable. Address searches check all connected nodes’ loaded wallets, including newly connected wallets not yet in the saved catalog. Replicated UTXOs are counted once. Core has no general address-history index: transaction lists reflect loaded wallet snapshots; a recognised wallet can provide current unspent outputs. Missing history, incomplete node checks and unknown fees are stated explicitly. Pruned or unindexed history is not treated as a zero balance, and no public explorer is contacted.
+
+> Current workflow: Ownership Stage 3 ends with Verify Balances. Wallets and its saved acquisition-cost provenance now come from Balance Trace, not the CGT report. The current README describes this update; historical feature notes below remain for context.
+
+# Wallaby Wallet — V1 Build 18
+
+Extract the complete ZIP. Start the service with `./Start_Wallaby_Wallet.sh`, or:
+
+```sh
+python3 launch_wallaby_wallet_server.py --no-browser
+```
+
+Both default to port **38951**. Use your SSH tunnel and open `http://[::1]:38951/`, or your chosen client-side tunnel port. IPv4 loopback also works. `--port` overrides the server port. The shell launcher does not open a browser.
+
+Python 3.11+, pypdf and odfpy are required. On Ubuntu/Kubuntu:
+
+```sh
+sudo apt install python3-pypdf python3-odf 7zip
+```
+
+The `tzdata` Python package in requirements.txt supplies IANA timezone rules on systems without a system timezone database. Ubuntu/Kubuntu normally provides these through its system `tzdata` package.
+
+Public descriptor derivation and raw transaction parsing are bundled; no Bitcoin Core installation or wallet unlock is needed on the wallet server server.
+
+## V1 Build 12 setup
+
+1. Open **Administration**, then select or create a family user. The sidebar and header remain visible before login; other pages unlock after a user is selected.
+2. Connect each node's Wallaby Agent, load the desired wallets in Bitcoin Core, then open **Ownership** and select **Load Node Wallets**. Every connected node is queried over read-only RPC. Identical public locking descriptors identify wallet copies, independently of wallet names; matching copies share RPC work. Ownership suggests the first reporting node's name. Different wallets with identical names stay separate. Core wallet history is reconstructed through the same connected nodes; after success Ownership opens at Stage 2. No console exports, private keys or wallet unlock are needed. Unloaded wallets or missing RPC capabilities stop discovery with an actionable error rather than accepting a partial collection.
+3. Open **Ownership**. Provide historical complete-year and current-year statements together in the **Bitaroo PDFs** card for each family profile, plus the shared Exchanges ODS. Any logged-in user can provide the whole family’s data. A missing card is red, a supplied card is green; select **Non Bitaroo user** to disable that profile’s PDF card in grey. All cards must be complete or nonapplicable before loading records. Current-year statements are optional when either your browser's local date or UTC date is 30 June or 1 July. Other inputs remain required. Each Bitaroo period needs matching AUD/BTC statements. Optional price quotes, CPI and tax-context files remain available.
+4. Select **Load records and review ownership**. The wallet server reads the descriptor history already discovered, loads the other records and asks for each wallet's owner and SMSF status. Bitaroo account owners are fixed by their Stage 2 upload cards; exchanges cannot be marked as SMSF accounts. To refresh descriptor history, select Load Node Wallets in Stage 1; the old separate refresh checkbox is removed. Select Verify Balances to save assignments and trace the family’s current holdings.
+5. Address Book and CGT setup unlock. Choose a matching tolerance and build the report. It calculates all supplied family profiles and every financial year from the earliest record through the current year. Financial Year Totals and CGT Event History display **only the logged-in user**. Use their left/right year arrows; future years cannot be selected. The initial year uses the browser’s local year, with the previous-year exception on UTC 30 June / 1 July. Wallets reuses each family owner’s known acquisition costs. Missing basis and SMSF costs can still be unavailable.
+
+The Bitcoin Core CSV and historical-wallet ODS upload workflows have been replaced by node wallet discovery. Live descriptor wallets retain Bitcoin Core's original source name and stable descriptor-based ID, with an editable display name saved in Ownership. Historical group names come from Core address labels and are read-only; exchange names come from their sheets.
+
+## Shared tracing behaviour
+
+- Automatic idle-priority discovery loads wallet names, complete public descriptors and legacy received-output metadata from every connected node. No manual descriptor/history paste workflow is shown.
+- Wallet replicas are grouped by overlapping public locking descriptors, ignoring key-origin annotations and checksum spelling. Their descriptor ranges/cursors and received outputs are merged. Unrelated equal names are disambiguated for display, not combined.
+- Fixed-address `addr()` descriptors in private-key-disabled Core wallets are grouped by address label. The Core parent wallet name is retained for RPC requests; the group label identifies the historical wallet in Ownership. No historical-wallet ODS is requested.
+- Ownership and wallet cards reserve four left-aligned icon slots for vault, extinct, wallet/exchange, multisig, watch-only and SMSF traits. The redundant base wallet symbol is omitted if needed to fit four traits. A vault descriptor alone is insufficient: positive received-output history must establish funding of its locked address. Historical funding remains evidence after spending or expiry. The Vaults page remains a placeholder.
+- Requests to different nodes run concurrently. Additional address ownership reads rotate among replicas, with read-only fallback. Per-node concurrency is bounded and consumed internal RPC results are released to avoid filling the broker.
+- All blockchain data is read through connected Agents. No public blockchain indexer or explorer API is queried. Price and FX feeds remain external. If indexation is required, supply the verified CPI file; CPI is no longer fetched externally.
+
+
+## Retained V154 behaviour
+
+Terminal Activity is available only while a process is running or waiting for an answer, and is disabled in the sidebar while idle. Administration → Logs downloads the browser workspace's UTF-8 `Wallaby_Wallet_Server.log`, including earlier jobs/profile switches. Mempool refreshes on every visit, then every two minutes. Vaults remains the Ownership-gated **No Vaults Detected** placeholder. Remembered node identities survive profile save/load; live connections and RPC requests/results do not. Duplicate hostname/MAC notices remain red, non-dismissible, and clear when the conflict ends.
+
+### Wallet Server profile archives
+
+**Save** creates a genuine `profile.7z`, using 7-Zip maximum compression (`-mx=9`). Install the system 7-Zip command for this feature; the other wallet server features do not require it. On Ubuntu/Kubuntu: `sudo apt install 7zip`. Windows/macOS can use an installed `7z` or `7zz` command on PATH.
+
+The archive contains `config.cfg`, `descriptors.cfg`, `data/` and `templates/`, where present. This preserves family users, ownership, source records, public descriptor history, saved personal CGT reports, shared templates, prepared PSBT workflows and notifications. Browser tokens, unsaved diagrams, activity logs, application code and disposable public network/price caches are excluded. Original uploaded source files outside the wallet server are never modified.
+
+Firefox uses its normal download location or Save dialog, with `profile.7z` as the supplied filename. Web pages cannot enforce a directory chooser or prevent the user/browser renaming downloads. The file picker filters `.7z`; the wallet server validates the exact basename `profile.7z` before uploading and the server validates it again. Rename a browser-created `profile (1).7z` back to `profile.7z` before loading.
+
+**Load** checks archive type, paths, size limits, links, manifest hashes, config schema, public descriptor identities, saved ownership files, template diagrams, transaction structure and report ownership before replacing live files. Invalid archives leave the current profile unchanged. Installation errors roll back the whole replacement. Only Wallaby archives with the included manifest are accepted. Archives may be up to 256 MB compressed and 2 GB expanded.
+
+**Load and Clear replace the entire shared family wallet server**, not just one logged-in user. The confirmation states this; connected browser sessions are reset to Administration. Clear removes the shared config, descriptor collection, data and templates. Save first to preserve them. Active discovery/calculation jobs must finish or be cancelled before saving, loading or clearing. Ordinary clients remain concurrent; profile operations obtain exclusive access to shared data during replacement/snapshotting.
+
+### Historical watch-only address groups
+
+Use a Core wallet with private keys disabled and imported `addr(address)` descriptors. Every address needs one nonempty label naming its historical wallet. The same base label on several addresses groups them into one wallet. Ordinary descriptor wallets remain separate. No parent wallet name, person, address or transaction is hardcoded.
+
+For an irreversible loss with no compensation, use exactly:
+
+```text
+Earlier Wallet | LOST:DD/MM/YYYY HH:MM:SS UTC
+```
+
+The suffix applies only to that address; its base label still groups it with the other addresses of Earlier Wallet. Supply the actual date/time when the loss was discovered, supported by your records. Core reports output and spending history, not proof that private keys were lost. The Wallet Server records retained outputs at that instant as CGT event C1, with zero proceeds and the reduced acquisition cost traced using the existing wallet parcel convention. It does not apply a market-value disposal, indexation or a 50% loss discount. Unused losses carry forward through the annual report calculations. Conflicting later receipts/spends, future loss dates or missing acquisition evidence stop the process for correction. Compensation/recovery needs separate review; this label workflow does not infer it.
+
+Original output identities remain in the shared trace graph. The loss is an economic record, never a fabricated blockchain transaction. Lost quantity is removed once from retained holdings; zero-balance historical wallets are hidden from balances. Historical groups are excluded from Address Book and transaction construction. Names must be changed at their source labels in Core, followed by Load Node Wallets.
+
+Reference: [ATO crypto asset loss guidance](https://www.ato.gov.au/individuals-and-families/investments-and-assets/crypto-asset-investments/crypto-asset-transactions-with-capital-gains-tax/loss-or-theft-of-crypto-assets), [ITAA 1997 section 104-20](https://www.legislation.gov.au/C2004A05138/latest/text).
+
+
+### Joint-payment accounting convention
+
+Public blockchain confirmation times are used, not exchange execution times. Wallet ownership comes from supplied public descriptors, owned outpoints and confirmed Ownership assignments. No identities, personal addresses or transaction IDs are built into the program. A historical address must not also be claimed by a distinct live descriptor wallet; duplicate script ownership is rejected.
+
+For jointly funded payments, the program uses the requested **accounting assumption**, not a claimed on-chain input/output mapping. The network fee is split equally between source wallets, with deterministic whole-satoshi rounding. Every input budget and every output amount, including wallet-controlled change, is conserved. Senders’ existing parcels are reserved before processing any of that transaction’s receipts; a new output cannot fund an input of the same transaction. Parent transactions sharing a block timestamp are processed before their children.
+
+The search compares proportional allocations, deterministic transport vertices and whole-satoshi cycle refinements. It also compares proportional, holding-period, highest/lowest-cost and oldest/newest parcel policies for each source wallet. Candidate scores use the existing annual CGT calculation, including losses before applicable discounts. The primary objective is the sum of the family’s calculated taxable capital gains. If several tested minimum-gain allocations remain and multiple affected owners have same-year disposals, Terminal Activity asks for predicted-income ordering, highest to lowest. This is a tie-break, not a calculation of personal income tax. Remaining ties favour the proportional allocation.
+
+The search is bounded (three coordinate sweeps per transport pass, with deterministic vertex limits on large diagrams). It is **not a certified global optimum**, and the report discloses the algorithm version, comparisons, policies, assumptions and satoshi matrix. A candidate with excluded disposal proceeds or unreconciled source quantities cannot be treated as a tax saving. Other assets’ CGT ledgers and unrelated income/losses are not invented.
+
+Each transaction’s allocation is optimised using only economic activity up to the end of its **own financial year**, or the current instant for an open year. Matching statement entries and dependency planning are bounded too. Earlier-year decisions are recomputed first and never reoptimised using later-year activity. The open year can change as data arrives. A completed year reproduces its allocations given the same historical inputs, prices, ownership/settings, income-ranking answers and algorithm version. Corrected past records, different answers, revised valuation inputs or a different algorithm are changed inputs and may change results.
+
+There is **no saved allocation ledger**, and neither saved transaction templates nor completed builder allocations are consulted. Choices exist in calculation memory; the generated report includes their audit details but is not read to seed another run. Profile-keyed opening capital losses apply before the earliest supplied FY; losses calculated within the loaded history carry forward automatically. The optional tax-year timezone overrides the browser timezone, which otherwise supplies the family replay calendar.
+
+Optional whole-return tax context now needs explicit user/year scope, so another person's return or a different year is never reused accidentally. The JSON format is `{"users": {"User name or ID": {"2026-27": {"basic_tax": "0", "basic_tax_without_gain": "0"}}}}`, with the existing optional calculation fields inside each year object. Use `{"users": {}}` when no context is supplied. User names are matched without case sensitivity; stable profile IDs are also accepted.
+
+V1 Build 12 does not establish that this accounting convention has ATO approval. The report identifies it as an assumption for review rather than representing it as a recovered fact.
+
+## Descriptor wallet display names
+
+In Ownership, Core descriptor wallets have an editable name field. Suggestions follow the earlier CSV naming rules: underscores become spaces, words are title-cased, and “Wallet” is appended if it is not already a word in the name. For example, `family_savings` suggests `Family Savings Wallet`; `emergency_wallet` suggests `Emergency Wallet`. Edit the suggestion and select **Verify Balances**. Existing custom labels are preserved.
+
+Only live descriptor wallets can be renamed. Historical group labels and exchange names remain fixed. Names must be non-empty and unique across the loaded wallets and exchanges. The selected label is shared through config.cfg. In Wallets, **Rename** has separate **Wallet Filename** and **Wallet Wallet Server Name** fields. Changing only the Wallet Server name updates current wallet displays, Ownership, Address Book and Vaults locally, without Agent requests or invalidating saved balance/trace calculations. Previously generated tax reports retain their calculation labels. Changing the filename requests local Agent approval for holding node copies and replacement archive discs. Watch-only node copies retain `_watch`. Successful filename confirmations preserve the Wallet Server name.
+
+These are display aliases: Bitcoin Core’s wallet name, descriptor strings, stable wallet IDs and saved scan fingerprint do not change. Reloading unchanged node descriptors or rerunning Ownership retains the saved alias. RPC requests always retain the original wallet name for each node.
+
+## Node-only wallet history
+
+Every loaded wallet supplies `listsinceblock` with change outputs included. Core-provided output references establish its scripts without probing thousands of addresses. This also covers migrated combo and hardened public paths. Raw transactions come from `getrawtransaction` or the relevant wallet's `gettransaction`; transaction IDs are verified locally. Confirmed UTC times come from Core's block headers. Unconfirmed movements are excluded from CGT. Public descriptors and exact historical owned outputs remain the basis of wallet identity.
+
+Load Node Wallets again after upgrading from earlier builds to collect the complete node-history metadata. Refresh it when Core learns new transactions or policies. Current builder inputs use fresh wallet `listunspent` and verified raw transactions. Change selection refreshes the public internal-descriptor cursors across connected replicas, then respects Wallet Server reservations. No RPC generates private keys, signs, unlocks a wallet or broadcasts.
+
+A pruned node can still return transactions retained by its loaded wallets, even if their blocks have been pruned. It cannot return arbitrary historical wallet transactions it never retained. Load the watch-only address descriptors and rescan with the necessary blocks available before running Load Node Wallets. Missing evidence stops reconstruction with an actionable error; there is no public fallback and no automatic blockchain re-download. Ancestors of external incoming payments may remain unknown without changing the explicitly received amount; the source remains unresolved, and no network fee is invented. Unknown input values on an owned spend stop the trace.
+
+Historical address monitoring uses the loaded Core watch-only wallet's reconstructed history. Import all relevant addresses and complete the rescan; the Wallet Server cannot discover unknown change addresses or recover arbitrary pruned blocks.
+
+## Mempool
+
+Fee and block observations use connected Bitcoin Core nodes via Agent, at the lowest broker priority. Ownership, Balance Trace and CGT work defer new fee requests. An RPC already executing cannot be interrupted; subsequent requests wait. While viewing the page, lightweight browser polling collects server snapshots; node refreshes occur at most every five seconds while idle. Deferred or stale results are labelled. BTC/AUD valuations use an external Kraken market quote.
+
+Four priority cards use Core's `estimatesmartfee`, bounded below by local mempool/relay policy. If Core lacks estimation history, local package estimates are labelled as the fallback. Projected blocks select ancestor packages and account for parents before children; they are not guarantees of miner inclusion or exact replicas of Core's block assembler. A large/unsupported mempool response leaves projections unavailable rather than presenting a truncated projection as complete. Mined blocks come from node headers and available block bodies.
+
+Enter a TXID and select Track Transaction. A mempool transaction marks the next projected block, without promising next-block confirmation. A confirmed transaction marks its visible block; older transactions produce a yellow notice. Tracking follows the selected node's knowledge and cannot locate arbitrary pruned transactions.
+
+The block component is adapted from Mempool's AGPL code, with Wallaby's local data adapter, simplified controls and colours. Original pinned component sources and attribution are under `vendor/mempool`. The running service offers corresponding application source at `/source.zip`. No Mempool logos or public API connections are included.
+
+## Wallets
+
+Verify Balances opens Wallets after completing the family Balance Trace. Current holdings use the same joint-payment policies and cost reconstruction as CGT, without publishing a tax report. The card icon row shows vault, wallet/exchange, watch-only and SMSF metadata in the same priority order as Ownership. The tooltip shows only AUD Gain/Loss, Owner, SMSF, Purchase Price and acquisition Sources beneath the wallet name. Purchase Price is the retained AUD cost of the current Bitcoin, not the wallet's lifetime purchases. Missing basis remains unavailable, not zero. SMSFs are excluded from personal cost tracing.
+
+## Saved data and freshness
+
+Keep these together when upgrading, moving or backing up the service:
+
+- `config.cfg`: family profiles, ownership, latest parsed Bitaroo ledger/coverage and per-profile Ownership metadata.
+- `data/`: supplied records, reconstructed descriptor history, saved reports and remembered node identities (`nodes.json`).
+- `descriptors.cfg`: the shared public descriptor collection, separate from config.cfg.
+
+A fresh login restores the profile's last successful Ownership inputs and assignments. Completed family CGT reports are saved in `data/reports/` and reopen for each logged-in profile, including after a service restart. Activity logs and unresolved-question answers are not reused by a later calculation. Starting a new CGT run discards the previous reports for every profile before calculation begins; failure or cancellation does not restore them. Changing the source records or ownership requires a new report. Changed descriptors invalidate the old Ownership scan until it is rerun. Ownership is a shared family process: its saved inputs and complete assignments unlock CGT setup and Transaction Builder for every profile. Each profile sees its own totals and history; the saved family calculation is separated into personal responses. Clearing configuration also removes the saved descriptor collection; original source files are not changed.
+
+Run-age warnings refer to completed shared processes, using the viewing browser’s local calendar and timezone. The newest successful Ownership process for any family profile refreshes the family Ownership age; any successful family CGT run refreshes the CGT age. Failed/cancelled runs do not make data fresh. Upgrading a V151 saved report without a completion timestamp requires one new CGT run to establish that timestamp.
+
+On CGT Event History, CGT Report, Financial Year Totals, Wallets, Transaction Builder and Vaults, one read notice is generated on visiting the page. Ownership warnings replace CGT warnings. The same notice appears on Notifications with its X disabled. A new run updates/removes the notice for each viewer; obsolete statement-coverage notices are retired when the new freshness check runs.
+
+## Access and packaging
+
+Family profile selection is password-free because access is controlled by your SSH tunnels. The service binds loopback, supports IPv4/IPv6 and different client-side tunnel ports, and separates browser workspaces. Shared configuration writes are locked and atomic. Public descriptors cannot sign transactions, but reveal wallet addresses/history and are private financial information. Wallet descriptors and blockchain queries remain between the Wallet Server, Agents and connected nodes. Never export with `true` or paste private keys, seeds or passphrases; private descriptors are rejected.
+
+The fee estimator, history graphs, Address Book and offline HTML reports remain available. Zero-balance labelled historical wallets remain hidden from balance cards; historical addresses are excluded from Address Book and transaction construction. Live descriptor wallets remain visible at zero. Historical exchanges are excluded from Address Book. Saved tax HTML does not contain the public descriptor collection.
+
+This ZIP contains runtime files and bundled-library notices only: no user configuration, wallet exports, test records, reports or caches.
+
+The builder uses the familiar separation of draggable nodes and connection handles described in the [React Flow handle documentation](https://reactflow.dev/learn/customization/handles). Its implementation uses the wallet server’s bundled JavaScript and SVG; no external UI library or online script is required.
+
+The builder’s **Next** button requires a positive payment, positive Network Fee contribution and a successful confirmed-UTXO estimate. It prepares one unsigned transaction with verified previous outputs, fresh change cursors and public signing metadata. Stage 3 of 3 collects signatures through local Agent approvals, then the creator requests separately authorised broadcast on a healthy Agent. Each input, including multisig/vault inputs, must reach its own signature threshold before broadcasting is enabled.
+
+## Maximum spend and signing notifications
+
+Select **Send maximum** in a payment connection to disable manual Bitcoin entry. One connection per source wallet can use maximum; other outgoing amounts are deducted first, along with that source’s allocated fee. All confirmed spendable inputs from that wallet are selected, and no change is returned to it. The amount recalculates after changes, on template loading, and again using fresh UTXOs before PSBT construction. Unconfirmed Bitcoin is excluded. A wallet cannot end empty if this same transaction also pays into it; that conflicting plan is rejected.
+
+Prepared PSBTs contain one complete transaction, verified previous transactions and public change metadata. Change addresses are derived within the current active internal range after refreshing Core cursors, and advanced beyond Wallet Server reservations. Refresh the descriptor export if its range or change cursor is exhausted. Fee calculations use conservative signed sizes, so the final fee rate may be slightly higher after signing.
+
+Stage 3 opens after preparation for the creator or sending owner. **Notifications** is also available through the bell beside the profile name. New signing requests mark the bell, Notifications and builder links with red dots for other sending owners. The transaction creator receives a read notification without a red dot. Opening Notifications marks requests as viewed without deleting them. Selecting a request in Notifications opens its prepared transaction at Stage 3. Sending participants can follow that request to sign even while their template-construction pages are locked. The X deletes only that user’s notification. Opening Transaction Builder resumes the latest accessible prepared transaction at that user’s permitted signing/combination stage, including after closing the browser or restarting the service. Unprepared diagram edits are discarded when leaving the builder; save a template to retain them.
+
+Every selected Agent receives the same final transaction. Select a connected signing account on its wallet card and request local review. The Agent displays the transaction using its own Core information, asks for local approval/unlocking and returns only a partially signed PSBT. Wallet Server verifies and accumulates distinct controlling-key signatures per input. Cards show progress and become green only when complete. A restored physical cosigner follows this same route; private backups and passwords must stay on the Agent computer. Use Agent Build 10's Disc Operations to load the archive into protected RAM, then Refresh signing accounts in Transaction Builder.
+
+Prepared transactions, unsigned PSBTs, verified signature proofs, combined PSBTs, notification state and change reservations persist in **data/transactions/workflows.json**. Include the existing data directory in backups. Reopening a transaction supersedes its wallet server PSBT and releases its input reservation; files already downloaded are not cryptographically revoked and must not be used after replacement. Removing a profile cancels orphaned prepared plans. No notification or wallet/transaction identity is hardcoded.
+
+
+## Verified signing and completion
+
+The current Agent workflow is **Stage 1 of 3 — Transaction Templates**, **Stage 2 of 3 — Diagram**, and **Stage 3 of 3 — Agent signing and broadcast**. Different private accounts belonging to one shared policy are independent signing choices, not independent balance wallets to synchronize. Returned partial signatures are checked against the original transaction and previous outputs. Repeated copies of one key's signature count once. Inputs with insufficient signatures stay incomplete.
+
+Once every sending wallet card is green, the transaction creator receives one completion notice. Only that creator can request broadcast; the selected Agent performs its own final local review and Core acceptance. After the node confirms the exact broadcast transaction, Complete returns to Ownership. Reopening/cancelling closes only the Wallet Server workflow; it cannot revoke signed material already held elsewhere.
+
+## Wallet Builder
+
+Wallet Builder is available after login. Choose single signature, multisig, vault or multisig vault, assign each independent role to an Agent and select encrypted node or physical-disc storage. Compare full fingerprints locally before requesting participation. Compare the full policy hash and six example addresses on every producing Agent before the second local approval. Every required disc needs a verified backup proof. See [the complete Wallet Builder guide](WALLET_BUILDER.md).
+
+Wallets hover details display the multisig threshold and distinct matching signing keys visible on connected Agents. Watch-only copies and duplicate copies of the same key are excluded; visibility does not guarantee a key can be unlocked or signing authorised.
+
+V1 Build 12 uses the non-dismissible shared process-age notices described above. Mempool and Administration do not show those banners.
+
+
+## Cancelling construction
+
+A red **Cancel** button appears at Stage 3 after transaction preparation. The transaction creator can cancel; other participants see the control disabled. The confirmation offers Yes and No with: “Are you sure you want to cancel construction of the current transaction?” No preserves the current process. Yes closes the prepared workflow, releases wallet server reservations, marks its requests read and returns the creator to Ownership. Transaction Builder remains available and opens at Stage 1 for a new template selection. Cancelling does not broadcast or revoke any file previously downloaded from Bitcoin Core or Wallaby.
+
+## Combined pages and complete exchange disposals
+
+Ownership contains all three stages, beginning with automatic node wallet collection. Saving complete ownership enables Transaction Builder immediately. Its template chooser is Stage 1, the diagram is Stage 2, signing is Stage 3, and multi-wallet combination is Stage 4. Existing signing-workflow file stage numbers remain compatible internally. The sidebar shows tool availability. Notifications is disabled only when its list is empty; read notifications still count.
+
+Receipt validation checks all supplied historical wallet records, including receipts outside the target year's active dependency graph. It no longer reports those exhausted historical receipts as unmatched. Unresolved source/destination questions remain on Terminal Activity. A genuine reconciliation error blocks completion rather than producing a partial report with review flags.
+
+A supplied crypto-to-BTC trade now records the sold asset's CGT as well as the BTC acquisition. AUD disposal proceeds come from the supplied BTC consideration and the existing timestamped BTC/AUD lookup. No additional crypto/crypto or USD conversion is needed. Network fees in the sold asset create separate disposal components; the existing BTC acquisition basis includes the fee's incidental acquisition cost once. Non-BTC amounts keep their own unit, without Bitcoin pipe notation.
+
+The exchange's quantities establish consideration, not the disposed asset's acquisition cost or holding period. Earlier supplied purchases establish those automatically. If they are absent, Terminal Activity asks for acquisition parcels (date, quantity, AUD cost). For otherwise untraced BCH, V1 Build 12 assumes investment acquisition at the 1 August 2017 Bitcoin Cash fork with zero AUD cost, including BCH spent on network fees. It does not ask for BCH acquisition details. Known supplied purchases retain their actual cost and date. Other non-fiat assets still require acquisition facts when missing. USD, RUB and all other fiat conversions are unchanged. Different holding periods remain separate CGT components. These answers belong to the current calculation and its saved working paper; they are not wallet ownership settings or transaction templates. See [ATO crypto chain splits](https://www.ato.gov.au/individuals-and-families/investments-and-assets/crypto-asset-investments/transactions-acquiring-and-disposing-of-crypto-assets/crypto-chain-splits).
+
+Prompt headings now use Exchange Tracer and Wallet Tracer. The wallaby logo retains its shape with a four-tile wallet server emblem.
+
+## BCH fork acquisition default
+
+The explicit BCH-only default avoids acquisition questions for BCH received from the Bitcoin fork and then sold directly. The amount sold and any BCH network fee still come entirely from the Exchanges ODS. Disposal proceeds still use the BTC received and transaction-time BTC/AUD quote; the BTC acquisition calculation is unchanged. The assumed acquisition date is 1 August 2017, so the usual holding-period test remains in place. This is a date-only acquisition fact, not a fabricated blockchain receipt time. The assumption is included in calculation notes and saved report facts. It does not depend on a profile, exchange or wallet name, and does not classify all non-Bitcoin assets as zero-cost.
+
+## Signed exchange units
+
+The two unit headings remain fixed within a tab. A negative amount means that unit was sold; a positive amount means it was received. Purchases and sales can share one exchange tab. Network Fee remains zero or negative and follows the actual outgoing crypto unit, or incoming BTC for fiat-funded buys. A supplied sale with a unique matching withdrawal/send uses that transfer’s parcels and does not create an additional disposal for the funding transfer.
+
+## Build 8 Agent transactions and vaults
+
+See [the Agent integration contract](AGENT_PROTOCOL.md). On Nodes, amber **Downloading Blockchain** means that Core is in initial download or has fewer blocks than known headers. A connected transport is not sufficient for signing eligibility. Nodes with unknown/error status are also excluded from signing and broadcast selection.
+
+Vaults lists only detected vault wallets. Hover amber cards for missing funds, invalid/unverified policy or pending local sync authorisation. Green means funds are under a validated unexpired vault policy; red **Unlocked** means the height restriction has ended. Countdown estimates show the two largest units and are not time guarantees.
+
+In a Builder diagram, select the source Agent to receive an unsigned vault intent. Its fixed red arrows cannot be changed; add other wallets' payments alongside it before Next. All wallet owners then review the same final PSBT on their selected local Agents. Signing cards are red until signatures have been checked; each becomes green and disabled when complete. Only the transaction creator can request **Broadcast combined PSBT** after every signature is verified. Broadcast still requires local Agent approval. Private keys and wallet passwords stay on the signing computer.
+
+These features work with Agent V2 Development Build 8 advertising the documented capabilities. An empty node list explains that readiness, private-key wallet matching or Agent support is missing. No private wallet is transferred through the Wallet Server. Wallet synchronisation uses Agent Build 8 and Wallet Server Build 10 signed metadata previews. Compare the sender fingerprint and snapshot code directly between Agent screens. Nodes displays queued/active/outcome states. Failed attempts require closing both local requests and reconciling Core before choosing New transfer attempt. Private files never pass through Wallet Server.
+
+## Build 10 Wallets and synchronisation
+
+Wallets replaces Wallet Balances. All Owners is the initial owner filter. Active Wallets starts selected and Extinct Wallets starts clear; changing filters never leaves both clear. Historical archive cards are grey and show the first/last confirmed activity years (one year when equal), without AUD balance or hypothetical profit/loss. Multiple addresses carrying the same base label form one old wallet. Separate labels in the same Core archive remain separate wallets and owners.
+
+Make Extinct requires zero funds and the new wallet_retirement_v2 Agent capability. On local Authorise approval the Agent must verify historical archival before deleting the listed original local wallet copies. Wallet Server waits for explicit confirmation; cancelled or failed attempts remain flagged. See the Build 18 section below.
+
+Use Agent V2 Development Build 8 or newer. Nodes shows all relevant missing-wallet requests and non-dismissible history-recovery warnings. Review the local Agent Synchronisation page to authorise work. Data received with incomplete history remains incomplete until recovery is locally approved and verified. Final receiver completion clears both paired request lists; it does not resend the wallet. The Wallet Server cannot restart Core, disable pruning or authorise a transfer.
+
+
+## Agent-owned synchronization choices
+
+Nodes displays each connected Agent's current synchronization permissions. Disable a particular incoming wallet policy on that Agent's Authorise page to remove its offers and missing-wallet notifications. Re-enable it or remove its local denial entry to allow synchronization again. Wallet Server has no duplicate enable/disable setting. It queries current signed state after connection and approximately every ten seconds; until a fresh response arrives it waits rather than assuming a wallet is unwanted or raising an actionable missing-wallet warning. The Agent owns persistence across reboots.
+
+A genuinely incomplete history recovery remains a real task and is not hidden by unrelated preferences. Existing failed or expired private-transfer attempts still require local reconciliation and an explicit fresh attempt; permission changes do not silently repeat a previously attempted private-file operation.
+
+
+## Build 13 — vault status and fee review
+
+Creating a wallet or vault does not transfer Bitcoin. Complete its Agent approvals and any physical backups first, then wait for every producing Core node to confirm its monitor. Reload Node Wallets and Ownership before funding the wallet through Transaction Builder. Wallet Builder labels this progression explicitly.
+
+Vaults shows only wallets with vault policies, including single-signature and multisignature vaults. Green means confirmed funds are locked with no reported verification issue; red means the height has been reached; amber means the wallet needs attention or is ready but unfunded. Hover for signature requirements, height, balance evidence and the last verified UTC time. Failed or overdue refreshes turn retained cards amber and label old values as last-known. A countdown is an estimate based on ten-minute blocks.
+
+Transaction Builder gives an extra fee review when the total is at least 10% of planned payments or the combined rate is at least 100 sats/vB. There is no hard fee cap. Review and acknowledge the actual fee before requesting signatures, then independently review the transaction on the Agent. Each browser/profile reviews its own requests. The acknowledgement is a user-interface aid, not remote authorisation or an Agent security control.
+
+For errors or uncertain results, inspect the selected Agent and Core before explicitly retrying. Do not interpret a lost response as proof that a private operation did not happen. A local denial must be cleared on that Agent. Existing Agent approval, signature and broadcast rules remain unchanged.
+
+
+## Build 14: fees, signer cards and retained diagnostics
+
+Open Mempool to request a current refresh. The four priorities appear before optional block views finish. Rates refresh every two minutes while the page stays open; opening it again or choosing Refresh estimates requests a refresh immediately, with a five-second shared debounce. A failed/disconnected node produces an explanation rather than an endless estimation message. Recent-block details and the AUD quote can fail independently. Terminal Activity shows the current fee phase while it is running.
+
+Wallet Builder uses fixed-width, individually coloured signer cards; an incomplete final row keeps the same card size.
+
+Administration → Logs downloads UTF-8 `.log` activity from today and the six preceding UTC days. Server files persist across restarts, at up to 1 MiB per day / 7 MiB total. Expired days are removed automatically; if a day fills up, the oldest entries are discarded. Report activity, fee stages/failures and Agent protocol errors are included. Poll requests, RPC credentials, passphrases and private wallet material are not logged. Diagnostic logs live in `logs/` next to `config.cfg` and are separate from profile archives and tax evidence. The retained log is shared between trusted family profiles.
+
+
+## Build 15: builder availability and node diagnostics
+
+Wallet Builder unlocks once at least one connected Agent has a fresh, successful, synchronized Core status and no live identity conflict. Presence by itself is insufficient. Transaction Builder also needs completed Ownership, even if a prior transaction is waiting. A node downloading blocks or synchronizing wallets does not qualify; another healthy connected node can keep the pages available.
+
+Locked builder links show an explanation in the sidebar until their prerequisites are met. Direct URLs also show the requirement. Pending work and saved templates remain intact during a dropout and become available after the prerequisites return.
+
+Nodes shows the Agent-reported version and any automatic Core RPC health error. Administration → Logs includes registration metadata, rejected request information and source locations for handler errors; it does not include connection tokens or private keys. All diagnostics keep the existing seven-UTC-day / 7 MiB cap.
+
+
+## Build 16: record loading, fee blocks and discovery feedback
+
+Ownership uses node wallet information, Exchanges ODS and Bitaroo PDFs. There is no Wallets ODS upload. The Load Records and Review Ownership button remains disabled until every applicable upload is selected; mark Non Bitaroo user when appropriate.
+
+Pending blocks show compact estimated rates with sats/vB on a separate line. Hover a block for the full original rate. The conversion cards and transaction fee calculations are unchanged.
+
+For new wallet creation, Wallet Builder checks signed Agent identities automatically: the first check for a workspace takes priority, and subsequent checks run at low priority while the page is open. The known identities remain visible while updated replies are pending. Leaving Wallet Builder stops its polling; returning shows the known identities and checks for updates. Wait for verification before selecting an Agent, and compare each full fingerprint with that Agent locally. A changed signed fingerprint requires comparison again. A stale signed reply is discarded rather than being trusted or blocking newer replies. No unsigned identity is substituted. There is no manual discovery button.
+
+## Build 17 navigation and setup
+
+Build 17 repairs Mempool after clearing or loading a profile: the old background service is closed and replaced with a fresh service, so node-backed estimates can refresh without restarting Wallet Server. Deferred updates are polled promptly; an empty mempool and an unavailable projection have explicit messages instead of an indefinite waiting label.
+
+There is no separate Wallet Server page. Use the sidebar to open tools; login, transaction completion/cancellation and finished activity return to Ownership. Historical ownership rows display **Extinct Wallet** as their source. The SMSF icon depicts a person leaning on a cane.
+
+Wallet Builder shows Role name only for multisignature policies. Single Signature and plain Vault still select a producing Agent and storage; their single signing role is assigned automatically. No Agent code or protocol change is needed.
+
+
+## Build 18 — making a zero-balance wallet extinct
+
+Build 18 changes Make Extinct into a zero-funds archival-and-deletion request. Wallet Server checks fresh Core balances on connected replicas, including known related vault monitors and multisig signing accounts. Pending, immature, watch-only or locked funds block retirement; unavailable balances and scans also block it. The Agent must independently repeat the checks and obtain approval on its local Authorise page before changing anything.
+
+Wallet Server requires the new `wallet_retirement_v2` Agent capability. Agent Build 18 implements the matching local operation. Earlier archive-only Agents cannot execute this request; upgrade each holder before it can confirm retirement. Wallet Server never deletes wallet files, unlocks wallets or invokes mutating Core RPCs.
+
+Agent completion must explicitly confirm verified historical archival, complete history, zero funds and deletion of every listed local wallet account. Cancelled, denied and failed requests remain flagged. After every known holder confirms archival and deletion, the initiating user confirms that archival discs were destroyed or that none existed; this is a recorded user statement, not a physical-media verification. Requests cover every known private and watch-only holder. Each Agent needs separate local approval. Offline or unsupported holders remain pending, with durable per-holder completion tracking; one node's success cannot complete the group. Retirement records survive profile backup/restore, and normal sync is suppressed for policies being retired or already retired.
+
+
+## Build 19
+
+Build 19 restores the Wallet Builder’s calendar-based vault estimator for single- and multi-signature vault policies. Choose a date (07:00 local) and an IANA timezone using the map or UTC-offset-ordered list. The latest synchronised mainnet node tip feeds a 99% Poisson-arrival estimate. The calculated height is read-only; its display uses commas, while Copy returns digits only. Target and most-likely times appear locally and in UTC. Ordinary wallets hide the estimator and send no timelock; single-wallet defaults now say New Wallet.
+
+Navigation reveals the active sidebar item after page changes and navigation-pane resizing without scrolling the main page. Make Extinct lives inside card hover/click details, keeping wallet cards equal in height. The button remains visible but disabled for other owners, funded/unknown balances, exchanges and extinct wallets. Fresh backend and local Agent zero-funds checks remain mandatory. Ongoing Extinction Processes show archival and deletion confirmations per holder, with cancellation and post-completion disc confirmation.
+
+Pending-block rendering remains enabled. The supplied 31 October log shows successful projections with Agent Build 18 at 05:04 UTC, followed by `local_rpc_failed` responses at 05:45 UTC in approximately one second. This is an Agent-side failure before Wallet Server receives the verbose mempool; its exception is currently replaced by a generic message. A response-size limit is plausible, not confirmed. Build 19 retains the Agent error code, transaction count and request deadline in bounded diagnostics. No public fallback, fabricated blocks or backward-compatibility transport is added. Agent diagnostics/large-mempool handling need investigation; this release does not claim that external failure is resolved.
+
+## Wallet Server Build 19: cancellation requests
+
+The creator may cancel a retirement group. Wallet Server stops queuing new holder requests. Undelivered requests can be marked cancelled locally. Delivered requests remain awaiting an actual Agent outcome; a Wallet Server click never establishes that deletion was stopped or reversed. Agent Build 18 supports local denial but does not implement remote cancellation.
+
+A future Agent implementing `wallet_retirement_cancel_v1` receives `{kind:"wallet_retire_cancel",version:1,request_hash:ORIGINAL_HASH}`. It should withdraw the matching pending approval safely and reply using `wallet_retirement_result` with the original hash and `status:"cancelled"` only when execution was stopped. Already-completed deletion must still report its real result. An in-flight uncertain operation must not be reported as cancelled. Agents without this capability receive no incompatible cancellation proposal; users can deny the original request locally.
+
+## Saved builder work and cancellation
+
+Choose Wallet Builder → Start Building a Wallet, or create/load a Transaction Builder template. Your public draft, visual layout and current stage are saved to the shared Wallet Server profile. Return using the same family user. Other users can see which user owns each builder but cannot edit their work. The transaction creator sends all signing requests; the wallet holders review them locally on their Agents.
+
+Use Cancel Wallet Creation or the transaction Cancel button, then confirm Yes. If no work reached an Agent, cancellation finishes immediately. Otherwise the saved progress dialog waits for each Agent to receive the cancellation request, including disconnected Agents when they return. Complete in this dialog means receipt only. On the Agent, independently choose Delete and Cancel or Backup and Cancel after checking its local warning. Wallet Server does not delete node wallets or backups. Cancelling cannot reverse broadcast. A service restart may pause an unfinished key ceremony for local reconciliation; it never generates replacement keys automatically.
+
+## Fee projection progress and logs
+
+Use Agent V2 Build 20 with Wallet Server Build 22. Fee rates appear first while the Wallet Server collects the local mempool in pages; the block view shows the received and expected transaction counts. Pending blocks appear only after the complete snapshot is checked. If a page fails or expires, the graph is discarded while rates and mined blocks remain available. Refresh to try a new capture, or wait for the two-minute refresh.
+
+Administration → Logs exports UTF-8 diagnostics with the Wallet Server version, UTC export time, connected Agent versions and correlated refresh/RPC/page measurements. Byte counts described as observed_bytes_at_least are lower bounds. Logs retain at most seven UTC days and 1 MiB per day; no mempool payload or credentials are included.
+
+
+## Build 22 automatic discovery and profiles
+
+Connect a fully synchronised Agent/node with its Core wallets loaded. Wallaby automatically discovers public wallets while foreground work is idle; it never navigates to Terminal Activity on its own. Ownership stays disabled on a fresh profile until complete wallet history is available. Terminal Activity exposes live background progress while a check runs. Failed or missing history is logged and retried, never accepted as an empty balance.
+
+Ownership Stage 1 of 2 loads exchange records. Stage 2 of 2 confirms ownership and verifies balances. Later discoveries retain the uploaded records and existing assignments, adding unassigned rows for new wallets. The dismissible discovery notice links to Ownership; viewing Ownership marks only discovery notices read.
+
+Profiles require a name and date of birth. Enter DD/MM/YYYY or choose the date with the adjacent calendar. Birth dates remain in the Wallet Server profile and its archive; they are not used in tax calculations at this stage. Existing imported profiles without a birth date need one when edited.
+
+Calculations → Mempool shows fee estimates, projected pending blocks, recent mined blocks and transaction tracking. Full cube outlines remain visible at every fill level. The coloured internal top surface meets both sides at the same fill height. Pending blocks pulse red; reduced-motion preferences disable the animation.
+
+
+## Build 23: separate fund records and salary calculations
+
+On Ownership, each profile has independent personal and SMSF Bitaroo upload areas. Untick **Non-Bitaroo SMSF User** to enable the fund statement folder; tick either checkbox to skip only that account. Supply the historical and current AUD/BTC statements for each enabled account. Uploaded fund accounts retain their fixed member profile and SMSF classification. Verify Balances returns to Wallets and reconstructs fund acquisition costs separately from personal holdings. Personal CGT reports exclude SMSFs; no SMSF tax return is generated here.
+
+Create/edit users with the date calendar. Existing users show their saved Date of Birth in DD/MM/YYYY. Hover a resource icon for its explanation, or another part of a wallet card for its financial details.
+
+After upgrading to Build 24, run **Verify Balances** again, then open **Calculations → Salary Builder → Start Building Your Salary**. Plans save independently for each profile. Add owned accounts as long-term funding or as one-year supplements. The combined long-term pool is divided by years remaining from your age on next 1 July to the selected target age (default 100). Private accounts are drawn before SMSFs; inaccessible fund money cannot fill a private-funding shortfall.
+
+Choose daily, weekly (weekday), fortnightly (anchor date) or monthly (day of month) paydays. The table uses the actual upcoming FY, including leap days and shortened months. Choose distribution, tax and spending destinations for the visual flow; this never creates a transaction. Shared-partner mode divides household net spending; independent mode uses separate net targets. The pay-rise multiplier applies to salary targets. Asset Allocation reserves up to the chosen multiple of base salary after salary targets. Additional salary equivalents exclude one-year supplements and are unavailable if the lifetime gross runway has a bridge shortfall.
+
+Expand assumptions to review the scenario BTC price, other income, losses, future CPI/transition valuation, Medicare planning buffer, fees, SMSF access conditions and fund phase. Bitcoin disposals use the verified acquisition parcels and the existing CGT rules. Moving money between your own wallets does not itself incur the displayed tax: the model assumes the annual allocation will be spent or gifted. A partner allowance is not a PAYG wage. Future-year projections are gross funding estimates, not forecasts of investment returns or future tax legislation.
+
+Tax status shows the official table source and refresh state. Opening Salary Builder requests current ATO tables; enacted future resident rates come from the Income Tax Rates Act if absent from that ATO page. The ATO low-income offset is also fetched. Data is validated before replacing the profile cache. A failed refresh leaves existing tables intact; if the selected FY lacks a validated table or required parcel data, tax/net results are unavailable. Medicare is an editable buffer, not automatic family/SAPTO/MLS assessment. Profile backup/restore includes the saved plan and downloaded tables.
+
+A ready-node dropout redirects Wallet/Transaction Builder to Nodes while retaining the public draft. Reconnect the Agent and reopen the builder to continue. No failed signing request is automatically replayed.
+
+
+## Build 25: diagrams for salary planning
+
+Stage 1 contains funding wallet cards. Add a source and click its card to choose long-term spreading or a one-year supplement. Click Distributor Wallet to assign a different owned account. Funding arrows appear automatically and cannot be removed or edited; remove the source card to exclude that source. Drag cards to arrange the plan. Use a source's arrow button, then select Network Fee, to add a fee contribution. Click its line to set sats/vB, or either endpoint dot to remove it. Before the complete funding plan can be checked, rates remain visible and payment/fee amounts remain hidden.
+
+Stage 2 contains user cards, not wallet destinations. Add any wallet server profile. Click an independent card to enter a net annual target before any outgoing shares; zero shares the remaining available net funding among zero-target cards after positive targets. Positive targets share funding shortfalls proportionally. Use a card's arrow button, then select another user, to give that recipient a percentage of the sender's incoming annual allocation. Recipients have no independent target while receiving. They may share onward, so a 10% allocation followed by a 25% allocation passes 2.5% of the original amount to the final person. Removing an incoming arrow restores that person's saved independent target. Loops and multiple incoming arrows are rejected, as are total outgoing shares above 100%.
+
+Click the grey Asset Allocation card to enable it, select an independent salary target as its reference and enter a multiplier. The reserve is taken after salary targets; a zero/receiving reference does not define an asset reserve. The pay-rise multiplier applies to independent targets and the selected reserve reference. The calculation tables count each person's retained amount once, including where money passes through several cards.
+
+Save Transaction Template becomes available after the first payday has a complete, tax-backed funding allocation and a ready node can estimate its confirmed UTXOs and fee. It saves the first payday's source-to-distributor transfer, not every payday and not the Stage 2 user allocation graph. Enter a new name and OK, or cancel/dismiss the dialog. Templates appear in Transaction Builder's shared list and are checked against fresh funds when loaded. Exchange AUD cannot be exported as Bitcoin; exchange-only funding also cannot provide node-held signing UTXOs. No Agent creation, signing or broadcast request is made by Salary Builder.
+
+The annual network-fee reserve uses the first payday's current size/rate multiplied by the number of paydays, plus any manual fee reserve. It is a planning estimate; future transactions can use different UTXOs and fees. Card positions, sources, users, targets, shares and fee rates save with the profile.
+
+Balance Sources are acquisition-cost evidence. A Bitaroo statement reference instead of a TXID is valid when that is the evidence used for the acquisition; it does not mean the node is missing the wallet. Internal ACCOUNT references are shown as statement filename, page and account record. Temporary server paths are omitted. Source display changes do not change ownership or tax calculations.
+
+## What a portable profile retains
+
+The profile includes persistent users, ownership, uploaded records, public wallet and node identities, saved balance and trace evidence, reports, wallet creation sessions, rename history, operation queues, notifications, templates, public vault policies, reserved addresses and fetched tax tables. Filename rename operations retain old/new names, matching public descriptors, Agent targets and confirmed results, allowing old copies to be recognised after restoration. Wallet Server label changes retain their own dated old/new-name history.
+
+Salary Builder is excluded from profile exports. A standalone initial Transaction Builder diagram is excluded too. Once a transaction reaches a later stage, the profile keeps its diagram along with its PSBT and signing progress. Any outstanding Agent operation, imported vault proposal, cancellation delivery or linked renewal is retained conservatively. Wallet Builder drafts remain saved. These exclusions affect only the exported copy; saving a profile does not erase the live draft.
+
+Operational logs and live browser/Agent connections are not portable profile state. Nodes must reconnect after restoration. Profiles contain public wallet information and transaction artifacts, not node private-key wallets.
+
+## Cancelling wallet requests
+
+Wallets shows one Pending Wallet Requests table below the cards while work remains. Wallet / Process, Node, Request, Status and Action identify the outstanding operation. Green rows show completed steps within a process, amber shows work awaiting progress, and red indicates an offline Agent. Completed/cancelled operations remain in the saved history and disappear from this pending list.
+
+Cancel Rename stops outstanding approvals without undoing applied names. Make Extinct can be cancelled while a matching private-key wallet remains visible; multisig requires every signer, not just its spending quorum. The Wallet Server rechecks visibility on submit. The extinction balance checks for starting the operation are unchanged. A watch-only copy cannot restore deleted private keys.
+
+Archive cancellation removes an unused request. A burn already started must finish verification. The Agent then handles preservation of unrelated disc members and local confirmation of physical cleanup. This requires the Agent archive-cancellation update; until installed, the Wallet Server keeps the request pending and reports the requirement. Builder cancellation delivery appears in the same list instead of a blocking progress overlay.
+
+Pending Wallet Requests includes remembered offline nodes as well as connected ones. Disc reviews that can be carried out elsewhere offer an Agent selector when the matching archive is loaded. An in-progress burn cannot be moved to another machine. On Nodes, disconnect an obsolete Agent before choosing Delete Node. This removes its Wallet Server requests and remembered route; it does not delete wallets on that machine. Actual completed history remains in the Wallet Server profile.
+
+When sending to a new address on the same wallet, the new-address card starts at zero. The original card is red, the receiving card and Network Fee card are green. A maximum payment leaves the original card at zero after its fee; the receiving card shows the transferred amount. These are proposed transaction amounts, not proof of broadcast or confirmation. Other unspent or locked funds may remain in the wallet.
+
+
+Background checks during a rename update wallet connection details in place. If the policy and transaction history are unchanged, saved ownership and balances stay available and your page stays open. Pending rename requests retain their original reviewed names and continue independently. Newly discovered wallets still need ownership assignments; changed transaction history still needs verification.
+
+
+Returning users open Wallets after login when their profile has saved Ownership data. New users begin on Ownership. Saved pages remain available without connected nodes; a message identifies saved data while it is being checked. Merely opening Ownership does not restart balance verification. Assigning an owner still starts verification, and the refresh control can request it deliberately. These jobs run without opening Terminal Activity or moving you on completion. Use Terminal Activity or its question indicator if the process needs an answer. New transaction creation/signing still requires a ready connected node and current verification.
+
+
+Wallet Builder keeps an active creation open while Agents finish local work or reconnect. A progress message explains when ready Agents are unavailable. Selecting physical-disc storage adds a disc icon immediately; card icons keep Wallet first and Disc last. Later approval cards show the same indicators. Completion requires all producing Core confirmations.
+
+To request an unrelated existing wallet for the same Agent's archive queue, use Wallets → its hover information → Archive this Wallet, and select the Agent with that persistent private-key wallet. Review the request locally on that Agent. The Agent controls which compatible queued wallets may share a disc; different signers of the same multisig must remain on separate discs. The updated Agent Disc Operations workflow is maintained in the Agent chat.
+
+
+Archive this Wallet does not require a fully checked or synchronised blockchain. A connected Agent must still report a complete matching persistent private-key wallet, and fresh public checks must succeed before the request is queued. The Agent must approve locally. Idle waits during another wallet's creation can therefore accept an unrelated wallet archive without cancelling the setup, once the Agent allows those read-only queries. Install Wallet Server upgrades with existing data retained; do not cancel an unfinished creation to apply this fix.
+
+Vault receiving previews (Build 78)
+
+Choose and calculate a refresh height in Wallet Builder, then open Address Book to compare its proposed new address in green. Complete Wallet Builder and local Agent policy approvals before sending Bitcoin. Left shows the current address in normal text and older addresses in red. An installed, unexpired address stays green until its first confirmed funding. An address that has been funded does not become green again after spending. New wallet builds gain a preview only after all public keys have arrived and their exact policy is assembled. Address Book cannot generate ordinary addresses for vault wallets.
+
+Vault refresh handoff (Build 79)
+
+Fingerprint comparison is required for new wallet creation, not for refreshing an existing wallet. During a refresh, the comparison checkbox is disabled and the signed-fingerprint section is hidden. The signer cards still verify all existing signing locations and archive discs. The return button remains available during background rechecks when every signer is detected; clicking it performs a fresh high-priority check before handing the public policy back to Transaction Builder. The handoff queues the local Agent policy approvals. Complete those approvals before preparing the payment PSBT in Transaction Builder. A failed check leaves your saved refresh intact.
+
+
+## Active and extinct wallets
+
+Make Extinct immediately places a wallet under Extinct Wallets in Wallet Server. It does not claim the Agents have finished: the pending requests table tracks preservation and each Agent’s locally approved cleanup. Empty-wallet and preserved-history checks still apply. Offline Agents are reconciled when they reconnect.
+
+Hover over an extinct card and choose Restore Wallet to return the same logical wallet to Active Wallets immediately. A persistent warning remains until Wallet Server freshly detects an active copy containing private keys. Public Extinct history is not a private-key backup. Restoration on an Agent requires locally approved direct SSH from a suitable original active source, using Agent Build 65 or later on both peers. Missing keys and unknown original assignments stay pending.
+
+One overall wallet card represents a multisig wallet. Wallet Server tracks its individual signer accounts separately in the backend and in operation progress; it does not add one Wallets card per signer. Additional Agents may receive watch-only copies after a private copy has been detected. Separate dismissible notifications identify Agents still reporting extinct copies. Pending obsolete extinction disc-destruction requests are withdrawn when Restore is selected; completed physical actions cannot be undone.

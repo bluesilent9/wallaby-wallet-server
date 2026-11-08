@@ -1,0 +1,37 @@
+/* Browser-only unused previews; historical selection never changes builder routes. */
+window.WallabyAddressHistory=(()=>{
+const previews=new Map(),positions=new Map(),proposedKeys=new Set(),pending=new Set();let refreshing=false;
+function view({el,button,toast,humanDate,entry,scope='',canGenerate=false,generate,changed=()=>{}}){
+ const key=scope+':'+entry.id;if(entry.has_vault&&previews.has(key)){previews.delete(key);positions.delete(key);}const proposed=entry.proposed_address,unfunded=entry.addresses.find(r=>r.new_vault_address);if(proposed||unfunded)proposedKeys.add(key);let preview=proposed||unfunded||previews.get(key);if(!proposed&&!unfunded&&preview&&(entry.confirmed_addresses||[]).includes(preview.address)){previews.delete(key);positions.delete(key);preview=null;}
+ const known=new Map();for(const r of [...(entry.address_history||[]),...entry.addresses,...(preview?[preview]:[])]){known.delete(r.address);known.set(r.address,r);}const rows=[...known.values()],latest=new Set(preview&&!proposed&&!unfunded?[preview.address]:entry.addresses.map(r=>r.address).concat(entry.current_vault_address?[entry.current_vault_address]:[])),signature=JSON.stringify([...latest,preview?.address]);let index=rows.length-1;const chosen=positions.get(key);if(chosen?.signature===signature){const i=rows.findIndex(r=>r.address===chosen.address);if(i>=0)index=i;}
+ const code=el('code',{class:'address-value'}),observed=el('p',{class:'subtle'}),evidence=el('div'),warning=el('p',{class:'address-history-warning',role:'note',hidden:true}),wrap=el('div',{class:'address-history'});
+ const copy=button('Copy address','outline address-copy',async()=>{try{await navigator.clipboard.writeText(rows[index].address);toast(latest.has(rows[index].address)||rows[index].address===preview?.address?'Address copied.':'Historical address copied — verify before use.');}catch{toast('Copy unavailable. Select the address and copy it manually.');}},'copy');
+ const left=button('←','small outline',()=>{if(index>0){index--;paint();}}),right=button('→','small outline',()=>{if(index<rows.length-1){index++;paint();}});left.setAttribute('aria-label','Previous receiving address');right.setAttribute('aria-label','Next receiving address');
+ const next=button('Generate new receiving address','small outline address-generate',async()=>{if(next.disabled)return;pending.add(key);next.disabled=true;try{const value=await generate();previews.set(key,value);positions.delete(key);changed();}catch(e){toast(e.message);}finally{pending.delete(key);next.disabled=!canGenerate||!!previews.get(key);}},'receive');next.setAttribute('aria-label','Generate new receiving address');next.disabled=!canGenerate||!!preview||pending.has(key)||!generate;
+ function paint(){const row=rows[index],fresh=!!row&&row.address===preview?.address,old=!!row&&!fresh&&!latest.has(row.address);code.textContent=row?.address||'Receiving address unavailable';code.className='address-value'+(old?' address-historical':fresh?' address-new':'');code.title=old?'Historical receiving address. This is not the latest address; verify independently before sending.':fresh?'This is a new receiving address you have selected':'';warning.textContent=fresh?(proposed?'Proposed new vault address — complete Wallet Builder and local Agent policy approvals before sending Bitcoin.':unfunded?'This is a new, unfunded vault receiving address.':'This is a new receiving address you have selected'):'Historical address — this may be an out-of-date receiving address. Verify it independently before sending Bitcoin.';warning.className='address-history-warning'+(fresh?' address-new':'');warning.hidden=!(old||fresh);left.disabled=index<=0;right.disabled=index>=rows.length-1;copy.disabled=!row;observed.textContent=row?'Observed '+humanDate(row.observed_utc):entry.reason||'';evidence.replaceChildren();if(row)positions.set(key,{address:row.address,signature});}
+ wrap.append(el('div',{class:'address-value-field'},left,code,right),el('div',{class:'address-actions'},copy,next),warning,observed,evidence);paint();wrap.addressCount=rows.length?1:0;return wrap;
+}
+function verification({el,button,toast,entry}){
+ const rows=entry.vault_samples||[],refresh=entry.proposed_address?.comparison_samples||[];if(!rows.length&&!refresh.length)return null;
+ const container=el('div',{class:'vault-address-comparisons'});
+ if(refresh.length){const start=entry.proposed_address.index,comparison=el('details',{class:'vault-disc-comparison'},el('summary',{},'Compare refresh addresses · starting index '+start),el('p',{class:'subtle'},'Match these with the Agent’s vault refresh review. The first receiving address is the reserved destination. Change addresses are comparison samples; the actual change address is selected and verified when a transaction is built.'));for(const row of refresh)comparison.append(el('div',{class:'vault-disc-sample'},el('span',{},row.branch+' · index '+row.index),el('code',{},row.address),button('Copy '+row.branch.toLowerCase()+' index '+row.index,'small outline',async()=>{try{await navigator.clipboard.writeText(row.address);toast('Verification sample copied.');}catch{toast('Copy unavailable. Select and copy the verification sample.');}},'copy')));container.append(comparison);}
+ if(!rows.length)return container;
+ const box=el('details',{class:'vault-disc-comparison'},el('summary',{},'Compare disc addresses'),el('p',{class:'subtle'},'These index 0 samples match the Agent disc-loading review. Match the vault height and Receiving or Change label. Your current receiving address may use a different index. Change samples are for comparison, not receiving payments.'));
+ for(const row of rows)box.append(el('div',{class:'vault-disc-sample'},el('strong',{},'Vault height '+Number(row.height).toLocaleString('en-AU')),el('span',{},row.branch+' sample · index '+row.index),el('code',{},row.address),button('Copy '+row.branch.toLowerCase()+' sample','small outline',async()=>{try{await navigator.clipboard.writeText(row.address);toast('Verification sample copied.');}catch{toast('Copy unavailable. Select and copy the verification sample.');}},'copy')));
+ container.append(box);return container;
+}
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function refresh({el,icon,root,request,apply,render,active=()=>true}){
+ if(refreshing)return;refreshing=true;root.querySelectorAll('.address-toolbar button,.address-toolbar select').forEach(n=>n.disabled=true);const cards=[...root.querySelectorAll('.address-card')];let value,error;
+ const work=Promise.resolve().then(request).then(v=>{value=v;},e=>{error=e;});
+ try{
+  for(const card of cards){card.style.minHeight=card.getBoundingClientRect().height+'px';card.setAttribute('aria-busy','true');card.querySelectorAll('button').forEach(n=>n.disabled=true);card.querySelector('.address-content')?.classList.add('address-content-out');}
+  await delay(500);
+  for(const card of cards)card.replaceChildren(el('span',{class:'vault-refresh address-spinner-in',role:'status','aria-label':'Updating receiving addresses'},icon('refresh')));
+  await Promise.all([work,delay(500)]);
+  for(const card of cards)card.querySelector('.vault-refresh')?.classList.add('vault-refresh-out');
+  await delay(500);if(!error)apply(value);
+ }finally{refreshing=false;if(active()){render();root.querySelectorAll('.address-content').forEach(n=>n.classList.add('vault-content-in'));}}
+ if(error)throw error;
+}
+return {begin:()=>{for(const key of proposedKeys)positions.delete(key);},view,verification,refresh,busy:()=>refreshing};})();

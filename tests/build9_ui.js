@@ -1,0 +1,1 @@
+const fs=require('fs'),assert=require('assert'),s=fs.readFileSync(process.argv[2],'utf8');assert(s.includes("rpcButton.disabled=n.blockchain?.state==='synchronising'"));assert(!s.includes('function transferStatus('));assert(!s.includes('function nodeIssuesView('));console.log('PASS: node controls retain synchronisation guards without any communication history list.');

@@ -1,0 +1,210 @@
+"""Durable shared signing workflows and per-user notifications."""
+import base64,copy,json,os,re,uuid
+from datetime import date,datetime,timezone
+from pathlib import Path
+from storage import data_directory,storage_lock
+from unsigned_psbt import construct
+from signed_psbt import decode,utxos,validate_upload,combine
+from preferences import FamilyStore
+from bitaroo_freshness import statement_age
+
+class WorkflowStore:
+    def __init__(self,config):
+        self.config=Path(config);self.path=data_directory(self.config)/'transactions'/'workflows.json'
+    def _read(self):return json.loads(self.path.read_text(encoding='utf-8')) if self.path.exists() else {'jobs':{},'notices':{},'change_cursors':{}}
+    def _write(self,data):
+        self.path.parent.mkdir(parents=True,exist_ok=True);temp=self.path.with_suffix('.tmp')
+        try:temp.write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8');os.chmod(temp,0o600);os.replace(temp,self.path)
+        finally:temp.unlink(missing_ok=True)
+    def prune_users(self,users):
+        with storage_lock(self.config):
+            data=self._read();valid=set(users)
+            for row in data['jobs'].values():
+                if row['creator_id'] not in valid or any(u not in valid for u in row['participants']):row['cancelled']=True
+            data['notices']={u:rows for u,rows in data['notices'].items() if u in valid}
+            data['archive_event_cursors']={u:rows for u,rows in data.get('archive_event_cursors',{}).items() if u in valid}
+            data.pop('dismissed_bitaroo_warnings',None)
+            self._write(data)
+    def sync_bitaroo_warnings(self,user,snapshot,local_date,zone,page):
+        from bitaroo_freshness import warnings
+        pending=warnings(snapshot,local_date,zone);reading=page in ('balances','vaults','notifications')
+        with storage_lock(self.config):
+            state=self._read();before=json.dumps(state,sort_keys=True);rows=state['notices'].setdefault(user,[])
+            previous={n.get('account_id'):n for n in rows if n.get('kind')=='bitaroo_warning'}
+            rows[:]=[n for n in rows if n.get('kind')!='bitaroo_warning']
+            for value in pending:
+                old=previous.get(value['account_id'])
+                same=old and old.get('statement_date')==value['statement_date'] and old.get('severity')==value['severity']
+                rows.append(dict(value,kind='bitaroo_warning',id=old['id'] if old else uuid.uuid4().hex,created_utc=old['created_utc'] if same else datetime.now(timezone.utc).isoformat(),read=reading or bool(same and old.get('read'))))
+            state.pop('dismissed_bitaroo_warnings',None)
+            if json.dumps(state,sort_keys=True)!=before:self._write(state)
+    def sync_run_warning(self,user,local_date,zone,page,snapshot=None):
+        from run_freshness import warning,PAGES
+        existing=self._read().get('notices',{}).get(user,[])
+        if page not in PAGES and not any(n.get('kind')=='run_freshness' for n in existing):return
+        value=warning(self.config,snapshot if snapshot is not None else FamilyStore(self.config).snapshot(),local_date,zone)
+        with storage_lock(self.config):
+            state=self._read();rows=state['notices'].setdefault(user,[]);before=json.dumps(rows,sort_keys=True)
+            previous=next((n for n in rows if n.get('kind')=='run_freshness'),None)
+            rows[:]=[n for n in rows if n.get('kind')!='run_freshness']
+            if value:
+                same=previous and previous.get('run_kind')==value['run_kind'] and previous.get('run_stamp')==value['run_stamp']
+                rows.append(dict(value,id=previous['id'] if same else uuid.uuid4().hex,created_utc=previous['created_utc'] if same else datetime.now(timezone.utc).isoformat()))
+            if json.dumps(rows,sort_keys=True)!=before:self._write(state)
+    def discovered(self,users,wallet_ids,reading=()):
+        from preferences import resource_id
+        family=FamilyStore(self.config).snapshot();owners={r['id']:r for r in family['ownership']}
+        unassigned=[w for w in wallet_ids if not (owners.get(resource_id('descriptor',w),{}).get('external') or owners.get(resource_id('descriptor',w),{}).get('owner_id') in {u['id'] for u in family['users']})]
+        with storage_lock(self.config):
+            data=self._read();before=json.dumps(data,sort_keys=True)
+            for user in users:
+                notices=data['notices'].setdefault(user,[]);current=next((n for n in notices if n.get('kind')=='wallet_discovery'),None)
+                notices[:]=[n for n in notices if n.get('kind')!='wallet_discovery' or n is current and unassigned]
+                if unassigned and current is None:
+                    notices.append({'id':uuid.uuid4().hex,'kind':'wallet_discovery','target':'ownership','severity':'yellow','text':'Wallets have been discovered. Complete the Ownership process.','created_utc':datetime.now(timezone.utc).isoformat(),'read':user in reading})
+            if json.dumps(data,sort_keys=True)!=before:self._write(data)
+    def read_discovery(self,user):
+        with storage_lock(self.config):
+            data=self._read();changed=False
+            for n in data['notices'].get(user,[]):
+                if n.get('kind')=='wallet_discovery' and not n['read']:n['read']=True;changed=True
+            if changed:self._write(data)
+    def send_message(self,sender_id,target_id,text):
+        snapshot=FamilyStore(self.config).snapshot();users={u['id']:u for u in snapshot['users']}
+        if sender_id not in users or target_id not in users or sender_id==target_id:raise ValueError('Select another existing user to message.')
+        if not isinstance(text,str) or not text.strip() or len(text)>4000:raise ValueError('Enter a message of 1–4,000 characters.')
+        notice={'id':uuid.uuid4().hex,'kind':'message','sender_id':sender_id,'sender_name':users[sender_id]['name'],'text':'From '+users[sender_id]['name']+': '+text.strip(),'created_utc':datetime.now(timezone.utc).isoformat(),'read':False}
+        with storage_lock(self.config):
+            data=self._read();data['notices'].setdefault(target_id,[]).append(notice);self._write(data)
+        return {'sent':True}
+    def vault_warning(self,user,text):
+        notice={'id':uuid.uuid4().hex,'kind':'vault_spend_warning','target':'builder','text':text,'created_utc':datetime.now(timezone.utc).isoformat(),'read':True,'dismissible':True,'severity':'yellow'}
+        with storage_lock(self.config):
+            data=self._read();data['notices'].setdefault(user,[]).append(notice);self._write(data)
+        return notice
+    def sync_archive_events(self,user,requests,page=''):
+        """Shared task outcomes, independently read/dismissed by each profile.
+
+        A durable seen ledger prevents a repeated Agent receipt from recreating
+        a dismissed notice. Opening Wallets only reads these archive notices.
+        """
+        with storage_lock(self.config):
+            data=self._read();before=json.dumps(data,sort_keys=True);rows=data['notices'].setdefault(user,[]);seen=data.setdefault('archive_event_cursors',{}).setdefault(user,{})
+            for ident,r in requests.items():
+                if r['state'] not in ('complete','deleted') or not r.get('outcome_utc'):continue
+                event=ident+':'+r['state']
+                if event in seen:continue
+                task=r['request'];host=r['hostname'];wallet=task.get('wallet') or task.get('label','Archive disc');deleted=r['state']=='deleted' or task['kind']=='archive_cancel'
+                if task['kind']=='archive_cancel':text='Archive cancellation completed locally on '+host+': '+wallet+('. Created disc destruction confirmed on Agent.' if r.get('result',{}).get('disc_created') else '. No disc was created.')
+                elif deleted:text='Archive request deleted on '+host+': '+wallet+'. This does not confirm a successful archive or disc destruction.'
+                elif task['kind']=='destroy_disc':text='Old archive disc destruction confirmed locally on '+host+': '+wallet+'.'
+                else:text='Archive completed and disc read-back verified on '+host+': '+wallet+'.'
+                notice={'id':uuid.uuid4().hex,'kind':'archive_outcome','target':'balances','request_id':ident,'outcome':r['state'],'severity':'red' if deleted else 'green','dismissible':True,'text':text,'created_utc':r['outcome_utc'],'read':page in ('notifications','balances')}
+                rows.append(notice);seen[event]=notice['created_utc']
+            if page in ('notifications','balances'):
+                for n in rows:
+                    if n.get('kind')=='archive_outcome':n['read']=True
+            if json.dumps(data,sort_keys=True)!=before:self._write(data)
+
+    def sync_lifecycle_notices(self,user,hub,page):
+        from wallet_lifecycle import notices
+        pending=notices(hub);reading=page in ('balances','notifications')
+        with storage_lock(self.config):
+            state=self._read();before=json.dumps(state,sort_keys=True);rows=state['notices'].setdefault(user,[]);old={n['id']:n for n in rows if n.get('kind')=='wallet_restoration'};dismissed=state.setdefault('dismissed_restoration_notices',{}).setdefault(user,[])
+            rows[:]=[n for n in rows if n.get('kind')!='wallet_restoration']
+            for n in pending:
+                if n['dismissible'] and n['id'] in dismissed:continue
+                rows.append(dict(n,read=reading or old.get(n['id'],{}).get('read',False)))
+            if json.dumps(state,sort_keys=True)!=before:self._write(state)
+    def notifications(self,user,scope=None):
+        with storage_lock(self.config):
+            state=self._read();rows=[dict(n,cancelled=state['jobs'].get(n.get('job_id'),{}).get('cancelled',False),cancel_reason=state['jobs'].get(n.get('job_id'),{}).get('cancel_reason')) for n in state['notices'].get(user,[])]
+        return {'notifications':list(reversed(rows)),'unread_count':sum(not n['read'] for n in rows)}
+    def update_notifications(self,user,delete=None):
+        with storage_lock(self.config):
+            data=self._read();rows=data['notices'].get(user,[])
+            if delete is not None:
+                if any(n['id']==delete and (n.get('dismissible') is False or n.get('kind') in ('run_freshness','bitaroo_warning')) for n in rows):raise ValueError('Refresh the relevant records to remove this notification.')
+                for n in rows:
+                    if n['id']==delete and n.get('kind')=='wallet_restoration':data.setdefault('dismissed_restoration_notices',{}).setdefault(user,[]).append(delete)
+                data['notices'][user]=[n for n in rows if n['id']!=delete]
+            else:
+                for n in rows:n['read']=True
+            self._write(data)
+        return self.notifications(user)
+    def active(self,user):
+        return [{'id':j['id'],'created_utc':j['created_utc']} for j in self._read()['jobs'].values() if not j.get('cancelled') and not j.get('completed') and user==j['creator_id']]
+    def job(self,user,ident):
+        if not isinstance(ident,str) or not re.fullmatch(r'[0-9a-f]{32}',ident):raise ValueError('Invalid transaction ID.')
+        with storage_lock(self.config):
+            row=self._read()['jobs'].get(ident)
+            if not row or user!=row['creator_id']:raise ValueError('This transaction is not available for this profile.')
+            return copy.deepcopy(row)
+    def input_wallets(self,row):
+        original=decode(base64.b64decode(row['psbt'],validate=True));assigned=row.get('input_wallets')
+        sources={e['from'] for e in row['diagram']['edges'] if e.get('max') or int(e['amount_sats']) or e['fee_rate'].strip('0.')}
+        if isinstance(assigned,list) and len(assigned)==len(original['inputs']) and all(uid in sources for uid in assigned):return assigned
+        raise ValueError('Prepared transaction is missing its exact input-wallet assignments.')
+    def public_job(self,user,ident):
+        row=self.job(user,ident);assigned=self.input_wallets(row);uploads=row.get('signed_uploads',{});wallets={w['id']:w for w in row['wallets']}
+        signing=[]
+        for uid in sorted(set(assigned)):
+            w=wallets[uid];received=uploads.get(uid,{})
+            signing.append({k:w.get(k) for k in ('id','name','owner_id','owner','colour')})
+            from multisig_psbt import progress
+            counts=progress(row['psbt'],received.get('proofs',{}),[i for i,w in enumerate(assigned) if w==uid])
+            signing[-1].update(complete=counts['complete'],signature_progress=counts,uploaded_utc=received.get('uploaded_utc'),input_count=assigned.count(uid))
+        all_signed=bool(signing) and all(w['complete'] for w in signing)
+        row.pop('signed_uploads',None);combined=bool(row.pop('combined_psbt',None));row['signing_wallets']=signing;row['all_signed']=all_signed;row['combined_ready']=combined
+        row['stage_count']=2 if row.get('agent_signing') else 2 if len(set(assigned))==1 else 3
+        row['completed']=bool(row.get('completed'));row['combined_downloaded']=bool(row.get('combined_downloaded_utc'))
+        row['can_combine']=row['stage_count']==3 and user==row['creator_id'] and all_signed and not row['cancelled'] and not row['completed']
+        row['can_complete']=user==row['creator_id'] and not row['cancelled'] and not row['completed'] and (row['stage_count']==2 or combined and row['combined_downloaded'])
+        if row.get('agent_signing'):row['can_complete']=user==row['creator_id'] and bool(row.get('broadcast_txid')) and not row['cancelled'] and not row['completed']
+        row['stage']=3 if combined and user==row['creator_id'] else 2;row['signing_revision']=row.get('signing_revision',0)
+        return row
+    def status(self,user,ident):
+        row=self.public_job(user,ident)
+        return {k:row[k] for k in ('id','cancelled','creator_id','signing_wallets','all_signed','combined_ready','can_combine','stage','stage_count','completed','combined_downloaded','can_complete','signing_revision','broadcast_txid') if k in row}
+    def complete(self,user,ident):
+        row=self.public_job(user,ident)
+        if not row['can_complete']:raise ValueError('Only the creator can complete the final stage; download the combined PSBT first for a multi-wallet transaction.')
+        with storage_lock(self.config):
+            state=self._read();current=state['jobs'][ident]
+            if current['cancelled'] or current.get('completed'):raise ValueError('This transaction is already closed.')
+            current['completed']=True;current['completed_utc']=datetime.now(timezone.utc).isoformat();current['signing_revision']=current.get('signing_revision',0)+1
+            for notices in state['notices'].values():
+                for n in notices:
+                    if n.get('job_id')==ident:n['read']=True;n['completed']=True
+            self._write(state)
+        return {'completed':True}
+    def cancel(self,user,ident,reason='reopened'):
+        self.job(user,ident)
+        with storage_lock(self.config):
+            data=self._read();row=data['jobs'][ident]
+            if row['creator_id']!=user or row.get('completed'):raise ValueError('Only the creator can reopen an active transaction for editing.')
+            row['cancelled']=True;row['cancel_reason']=reason;row['cancelled_utc']=datetime.now(timezone.utc).isoformat();row['signing_revision']=row.get('signing_revision',0)+1
+            for rows in data['notices'].values():
+                for n in rows:
+                    if n.get('job_id')==ident:n['read']=True
+            self._write(data)
+    def create(self,session,catalog,diagram,workspace_id=None):
+        users={u['id'] for u in FamilyStore(self.config).snapshot()['users']};wallets={w['id']:w for w in catalog['wallets']}
+        sources={e['from'] for e in diagram['edges'] if e.get('max') or int(e['amount_sats']) or e['fee_rate'].strip('0.')}
+        participants=sorted({wallets[s].get('owner_id') for s in sources if s in wallets}-{None})
+        if not participants or any(wallets[s].get('owner_id') not in users for s in sources):raise ValueError('Assign every sending wallet to a family user before preparing the transaction.')
+        with storage_lock(self.config):base_cursors=dict(self._read()['change_cursors'])
+        reserved=dict(base_cursors)
+        result=construct(session,catalog,diagram['edges'],reserved)
+        with storage_lock(self.config):
+            data=self._read()
+            for key,value in reserved.items():
+                if value!=base_cursors.get(key,0) and data['change_cursors'].get(key,0)!=base_cursors.get(key,0):raise ValueError('Another transaction reserved a change address during preparation. Refresh the estimate and try again.')
+            active={tuple(point) for job in data['jobs'].values() if not job.get('cancelled') and not job.get('completed') for point in job.get('outpoints',[])}
+            if any(tuple(p) in active for p in result['outpoints']):raise ValueError('An input is already used by another prepared transaction. Reopen that transaction for editing before preparing a replacement.')
+            now=datetime.now(timezone.utc).isoformat();ident=uuid.uuid4().hex
+            row={'id':ident,'workspace_id':workspace_id,'creator_id':session.user_id,'participants':participants,'created_utc':now,'cancelled':False,'agent_signing':True,**result,'wallets':catalog['wallets'],'diagram':{'nodes':copy.deepcopy(diagram['nodes']),'edges':result['edges']}}
+            data['change_cursors'].update({k:v for k,v in reserved.items() if v!=base_cursors.get(k,0)})
+            data['jobs'][ident]=row
+            self._write(data)
+        return row

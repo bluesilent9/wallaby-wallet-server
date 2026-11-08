@@ -1,0 +1,25 @@
+[Unit]
+Description=Wallaby Wallet Server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=wallaby-wallet-server
+Group=wallaby-wallet-server
+WorkingDirectory=/var/lib/wallaby-wallet-server
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /usr/lib/wallaby-wallet-server/launch_wallaby_wallet_server.py --no-browser --config /var/lib/wallaby-wallet-server/config.cfg --state-dir /var/cache/wallaby-wallet-server
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/wallaby-wallet-server /var/cache/wallaby-wallet-server
+
+[Install]
+WantedBy=multi-user.target

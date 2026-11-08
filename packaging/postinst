@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+case "$1" in
+ configure)
+    getent group wallaby-wallet-server >/dev/null || addgroup --system wallaby-wallet-server
+    getent passwd wallaby-wallet-server >/dev/null || adduser --system --ingroup wallaby-wallet-server --home /var/lib/wallaby-wallet-server --no-create-home --shell /usr/sbin/nologin wallaby-wallet-server
+    /usr/bin/python3 /usr/lib/wallaby-wallet-server/install_migration.py
+    install -d -m 0700 -o wallaby-wallet-server -g wallaby-wallet-server /var/lib/wallaby-wallet-server /var/cache/wallaby-wallet-server
+    chown -hR wallaby-wallet-server:wallaby-wallet-server /var/lib/wallaby-wallet-server /var/cache/wallaby-wallet-server
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload
+        systemctl enable --now wallaby-wallet-server.service
+        if [ -n "${2:-}" ]; then systemctl restart wallaby-wallet-server.service; fi
+    else
+        systemctl enable wallaby-wallet-server.service
+    fi
+ ;;
+esac

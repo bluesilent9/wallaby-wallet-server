@@ -1,0 +1,29 @@
+/* Paired phones compare public claims; local Agent approval remains mandatory. */
+window.WallabyMobile=(()=>{
+let current=null,timer=null,busy=false;
+function view({el,button,icon,api,toast,user}){
+ const page=el('section',{class:'mobile-page'},el('p',{class:'eyebrow'},'SYSTEM'),el('h1',{},'Mobile Devices'),el('p',{class:'intro'},'Pair your phone to compare Agent identities and operation details. Your phone connects automatically when its app opens; approvals stay on the Agents.'));
+ const content=el('div');page.append(content);current=page;
+ const post=async(path,data)=>{const response=await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});return response.json();};
+ function close(dialog){dialog.close();dialog.remove();}
+ function pair(){
+  const host=el('input',{type:'text',placeholder:'Server hostname or IP address',autocomplete:'off'}),login=el('input',{type:'text',placeholder:'SSH username',autocomplete:'off'}),port=el('input',{type:'number',min:1,max:65535,value:22,autocomplete:'off'}),feedback=el('p',{role:'alert'});
+  const dialog=el('dialog',{class:'wallaby-dialog mobile-pairing'},el('h2',{},'Pair a phone'),el('p',{},'The phone will use your existing SSH access. SSH passwords and private keys are entered or stored on the phone, never in this pairing code.'),el('label',{},'Server address',host),el('label',{},'SSH username',login),el('label',{},'SSH port',port),feedback);
+  const create=button('Show pairing code','primary',async()=>{create.disabled=true;try{const data=await post('/api/mobile/pair',{ssh:{host:host.value.trim(),user:login.value.trim(),port:Number(port.value)}});if(data.error)throw Error(data.error);const image=el('img',{class:'mobile-pair-qr',alt:'Scan this code in Wallaby Wallet Mobile',src:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(data.qr_svg)});dialog.replaceChildren(el('h2',{},'Scan with your phone'),image,el('p',{},'This pairing code expires in two minutes. Keep it private.'),el('p',{class:'mono'},'SSH host identity: '+data.payload.ssh.host_fingerprint),button('Close','outline',()=>close(dialog)));}catch(e){feedback.textContent=e.message;create.disabled=false;}});
+  dialog.append(button('Cancel','outline',()=>close(dialog)),create);document.body.append(dialog);dialog.showModal();
+ }
+ function confirmPair(row){const dialog=el('dialog',{class:'wallaby-dialog'},el('h2',{},'Confirm '+row.name),el('p',{},'Check that this same six-digit code is displayed on your phone.'),el('strong',{class:'mobile-pair-code'},row.comparison_code),el('p',{class:'mono'},row.fingerprint));dialog.append(button('Cancel','outline',()=>close(dialog)),button('Codes match — Pair','primary',async()=>{try{const result=await post('/api/mobile/approve',{device_id:row.id,comparison_code:row.comparison_code});if(result.error)throw Error(result.error);close(dialog);await load();}catch(e){toast(e.message);}}));document.body.append(dialog);dialog.showModal();}
+ function revoke(row){const dialog=el('dialog',{class:'wallaby-dialog'},el('h2',{},'Remove this phone’s access?'),el('p',{},row.name+' will need to be paired again before it can reconnect.'));dialog.append(button('Keep phone','outline',()=>close(dialog)),button('Remove access','danger',async()=>{try{const result=await post('/api/mobile/revoke',{device_id:row.id});if(result.error)throw Error(result.error);close(dialog);await load();}catch(e){toast(e.message);}}));document.body.append(dialog);dialog.showModal();}
+ function render(data){
+  const pairButton=button('Pair a Phone','primary',pair,'mobile');pairButton.disabled=!data.enabled;
+  content.replaceChildren(el('section',{class:'card mobile-intro'},el('h2',{},'Verify together'),el('p',{},'Mobile verification reports whether the required Agents match. Continue reviewing addresses, amounts and vault times on each Agent before approving.'),el('p',{class:'subtle'},'Server support is ready. The Android app and Agent QR screens are separate implementation stages.'),pairButton,!data.enabled?el('p',{class:'subtle'},'Pairing becomes available when the server’s loopback mobile listener and OpenSSH host identity are available.'):null));
+  for(const row of data.pending||[])content.append(el('section',{class:'card'},el('h2',{},row.name+' wants to pair'),el('p',{},'Compare the code on this phone before granting verification access.'),button('Compare pairing code','outline',()=>confirmPair(row))));
+  const grid=el('div',{class:'node-grid'});
+  for(const row of data.devices||[]){const result=row.verification;grid.append(el('article',{class:'card mobile-device '+(row.revoked?'mobile-revoked':'')},el('span',{class:'card-icon'},icon('mobile')),el('h2',{},row.name),el('p',{},el('span',{class:'node-dot '+(row.connected&&!row.revoked?'connected':'disconnected')}),row.revoked?'Access removed':row.connected?'Connected':'Disconnected'),el('p',{class:'subtle'},'Verification only'),el('p',{class:'mono'},row.fingerprint),result?el('p',{},result.matches+' matched · '+result.mismatches+' mismatched · '+result.remaining+' still to check'):null,!row.revoked?button('Remove access','small danger',()=>revoke(row)):null));}
+  if(!(data.devices||[]).length)grid.append(el('p',{class:'subtle'},'No phones have been paired for this user.'));
+  content.append(grid);
+ }
+ async function load(){if(busy||current!==page||!page.isConnected)return;busy=true;try{const data=await(await api('/api/mobile')).json();if(data.error)throw Error(data.error);if(current===page&&page.isConnected)render(data);}catch(e){if(page.isConnected)toast(e.message);}finally{busy=false;}}
+ content.append(el('p',{},'Checking paired phones…'));clearInterval(timer);timer=setInterval(()=>{if(!page.isConnected){clearInterval(timer);return;}load();},5000);queueMicrotask(load);return page;
+}
+return {view};})();
