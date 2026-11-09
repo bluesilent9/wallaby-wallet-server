@@ -25,6 +25,9 @@ def validate(state,users,config=None):
             if config:
                 from setup_signatures import verify
                 verify(config,record['envelope'],record['envelope']['public_key'])
+        if 'sync_offer_revision' in row:
+            from wallet_sync_offers import validate_saved
+            validate_saved(row)
         if row.get('ipv6'):ipv6(row['ipv6'])
         if 'sync_revision' in row:
             if type(row['sync_revision']) is not int or row['sync_revision']<0 or not isinstance(row.get('sync_snapshot'),list) or len(row['sync_snapshot'])>128:raise ValueError('Invalid saved synchronization list.')

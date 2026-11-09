@@ -3,9 +3,9 @@
 <h1 align="center">Wallaby Wallet Server</h1>
 <p align="center">Your Bitcoin. Managed together.</p>
 
-**V1 Build 5 · Development. No Stable release is available yet.**
+**V1 Build 6 · Development. No Stable release is available yet.**
 
-[Explore Wallaby Wallet](https://bluesilent9.github.io/wallaby-suite/wallet/) · [Wallaby Suite](https://bluesilent9.github.io/wallaby-suite/) · [Development installer](https://github.com/bluesilent9/wallaby-wallet-server/raw/refs/heads/Development/dist/wallaby-wallet-server_1.0.0~dev5_all.deb) · [Checksums](dist/SHA256SUMS.txt) · [User guide](docs/USER_GUIDE.md)
+[Explore Wallaby Wallet](https://bluesilent9.github.io/wallaby-suite/wallet/) · [Wallaby Suite](https://bluesilent9.github.io/wallaby-suite/) · [Development installer](https://github.com/bluesilent9/wallaby-wallet-server/raw/refs/heads/Development/dist/wallaby-wallet-server_1.0.0~dev6_all.deb) · [Checksums](dist/SHA256SUMS.txt) · [User guide](docs/USER_GUIDE.md)
 
 Wallaby Wallet Server is the Bitcoin-focused successor to Wallaby Dashboard. It coordinates family wallet management, single-signature and multisignature wallets, height-locked vaults, transaction building, optical archive requests, balances, a node-backed Mempool explorer, salary planning and Australian CGT working papers. The interface is branded **Wallaby Wallet**.
 
@@ -25,7 +25,7 @@ This release implements the **server stage only**. The Android application and A
 
 ## Installation and upgrades
 
-Ubuntu/Kubuntu 26.04 LTS: download the Development DEB, verify its checksum, then install with `sudo apt install ./wallaby-wallet-server_1.0.0~dev5_all.deb`.
+Ubuntu/Kubuntu 26.04 LTS: download the Development DEB, verify its checksum, then install with `sudo apt install ./wallaby-wallet-server_1.0.0~dev6_all.deb`.
 
 The new package replaces `wallaby-dashboard`. Its migration stops the previous system service, moves existing application data and cache to `/var/lib/wallaby-wallet-server` and `/var/cache/wallaby-wallet-server`, preserves the data byte-for-byte, and starts `wallaby-wallet-server.service`. Existing legacy data paths remain compatibility links. Conflicting nonempty old/new profiles are never silently merged. Stop manually launched copies before upgrading. No live installation is performed by the build process.
 
@@ -41,4 +41,4 @@ Build 3 adds direct-peer SSH rendezvous policy and path status, Mobile–Mobile 
 
 Build 4 restores the original Wallaby-and-Bitcoin logo and changes password creation to 8–1,024 characters with at least one digit and one punctuation/symbol character. Saved passwords and profile data are not reset.
 
-Build 5 fixes the shared mobile-device icon and makes login open Ownership only when a known wallet or exchange currently needs an assignment. Otherwise login opens Wallets, including on an empty system. This is derived system-wide from current records; no historical-run marker is saved. Saved builders remain intact and can be opened explicitly.
+Build 6 separates public wallet offers from executable sync requests. Agent Build 70 can show missing-wallet offers and local denials before QR pairing; pairing, signed preview and local approval are still required for transfers. Existing wallet builds, frozen approvals and signer isolation are preserved. See [sync offer protocol](docs/SYNC_OFFERS.md).

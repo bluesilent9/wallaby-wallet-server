@@ -117,11 +117,15 @@ def schedule(transfers,state):
             hub.registry.diagnostic_log.append('Wallet sync','Queue status · node='+node[:12]+' · queued='+str(len(rows))+' · blockers='+(','.join(k+':'+str(v) for k,v in sorted(counts.items())) or 'none'))
         for row in rows:row['queue_revision']=entry['sync_revision']
 
+    from wallet_sync_offers import schedule as schedule_offers
+    schedule_offers(transfers,state)
+
 
 def proposals(transfers,state,node):
     entry=state['nodes'].get(node,{})
     if 'sync_revision' not in entry:return []
-    result=[{'kind':'wallet_sync_queue','revision':entry['sync_revision'],'requests':copy.deepcopy(entry['sync_snapshot'])}]
+    from wallet_sync_offers import proposal as offer_proposal
+    result=offer_proposal(transfers.hub,entry,node)+[{'kind':'wallet_sync_queue','revision':entry['sync_revision'],'requests':copy.deepcopy(entry['sync_snapshot'])}]
     previews=[]
     for rows in transfers.pairs(state).values():
         row=next((r for r in rows if r['node_id']==node and r.get('queue_v2') and r.get('queue_visible')),None)

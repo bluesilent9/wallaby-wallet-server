@@ -433,3 +433,9 @@ One overall wallet card represents a multisig wallet. Wallet Server tracks its i
 ## Wallet Server V1 Build 5 login
 
 Login opens Ownership only when a known wallet or exchange currently needs an assignment anywhere in the shared system. Otherwise it opens Wallets, including when no wallets have yet been discovered. Previous runs and saved builder work do not choose the login destination. Builder progress is retained and can be opened explicitly. Mobile Devices uses a phone-outline icon consistently in navigation, pairing and device cards.
+
+## Wallet Server V1 Build 6 sync offers
+
+Use Agent Build 70 with Server Build 6 to see missing-wallet offers on the Agent's Synchronisation page before pairing the Agents. An offer is informational. Pair the named Agents before reviewing and approving a real transfer. You can deny an incoming wallet on the receiving Agent without pairing first; its local deny list persists and can be changed there.
+
+An offer waiting for pairing or current inventory is not a failed transfer. Existing watch copies do not automatically become private-key copies, and intentionally separate multisig signer wallets are not cloned as missing replicas.

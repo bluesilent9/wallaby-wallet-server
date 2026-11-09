@@ -15,7 +15,7 @@ from agent_rpc import PRIVATE
 
 from builder_workspace import serialised,BuilderWorkspace
 
-CAPS={'wallet_policy_refresh_relay_v1','wallet_relay_v1','wallet_mobile_verification_v1','wallet_policy_refresh_cancel_v1','wallet_policy_refresh_batch_v1','wallet_archive_cancel_v1','wallet_rename_v1','archive_inventory_v1','wallet_archive_queue_v1','wallet_policy_refresh_v1','builder_cancellation_v1','node_identity','partial_signing','broadcast','automatic_broadcast_v1','wallet_transfer','wallet_retirement_v3','wallet_retirement_cancel_v1'}
+CAPS={'wallet_sync_offers_v1','wallet_policy_refresh_relay_v1','wallet_relay_v1','wallet_mobile_verification_v1','wallet_policy_refresh_cancel_v1','wallet_policy_refresh_batch_v1','wallet_archive_cancel_v1','wallet_rename_v1','archive_inventory_v1','wallet_archive_queue_v1','wallet_policy_refresh_v1','builder_cancellation_v1','node_identity','partial_signing','broadcast','automatic_broadcast_v1','wallet_transfer','wallet_retirement_v3','wallet_retirement_cancel_v1'}
 def digest(value):return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()).hexdigest()
 def canonical(value):
     raw=json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False)
@@ -198,7 +198,10 @@ class AgentHub:
                 from extinct_sync import containers,supersede_children
                 for wallet in containers(origin['wallets']):
                     if wallet.get('extinct'):supersede_children(state,target,wallet)
-                    if wallet.get('signing_only') or not self.permissions.allows_offer(target,wallet['raw']):continue
+                    if wallet.get('signing_only'):continue
+                    # An unknown receive preference may delay execution, but
+                    # must not hide non-authorising public discovery.
+                    if not self.permissions.allows_offer(target,wallet['raw']) and ('wallet_sync_offers_v1' not in self.caps.get(target,set()) or self.permissions.permits(target,wallet['raw']) is False):continue
                     from wallet_retirement import suppress_sync
                     if suppress_sync(state,wallet['raw']):continue
                     try:
