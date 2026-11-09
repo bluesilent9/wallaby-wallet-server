@@ -429,3 +429,7 @@ Make Extinct immediately places a wallet under Extinct Wallets in Wallet Server.
 Hover over an extinct card and choose Restore Wallet to return the same logical wallet to Active Wallets immediately. A persistent warning remains until Wallet Server freshly detects an active copy containing private keys. Public Extinct history is not a private-key backup. Restoration on an Agent requires locally approved direct SSH from a suitable original active source, using Agent Build 65 or later on both peers. Missing keys and unknown original assignments stay pending.
 
 One overall wallet card represents a multisig wallet. Wallet Server tracks its individual signer accounts separately in the backend and in operation progress; it does not add one Wallets card per signer. Additional Agents may receive watch-only copies after a private copy has been detected. Separate dismissible notifications identify Agents still reporting extinct copies. Pending obsolete extinction disc-destruction requests are withdrawn when Restore is selected; completed physical actions cannot be undone.
+
+## Wallet Server V1 Build 5 login
+
+Login opens Ownership only when a known wallet or exchange currently needs an assignment anywhere in the shared system. Otherwise it opens Wallets, including when no wallets have yet been discovered. Previous runs and saved builder work do not choose the login destination. Builder progress is retained and can be opened explicitly. Mobile Devices uses a phone-outline icon consistently in navigation, pairing and device cards.

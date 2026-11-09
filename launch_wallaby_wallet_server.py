@@ -90,6 +90,7 @@ class Session:
         self.sync_workspace(data)
         descriptor_store=DescriptorStore(self.preferences_path)
         descriptors=descriptor_store.summary();ledger_ready=history_ready(self.preferences_path,None,fingerprint=descriptors['fingerprint'])
+        assignment_required=__import__('ownership').needs_assignment(self.preferences_path,data,descriptors['wallets'],self.inventory) if user else False
         assignments_ready=False
         saved_inventory=data.get('ownership_runs',{}).get(self.user_id,{}).get('inventory',[])
         if user and (self.inventory or saved_inventory):
@@ -131,7 +132,7 @@ class Session:
             elif saved is None:self.report=None;self.report_context=None
             self.report_generation=generation
         report_ready=available and self.report is not None
-        return {'login_page':'balances' if available and self.user_id in data.get('ownership_runs',{}) else 'ownership','ownership_available':available,'balances_available':bool(saved_balance),'saved_data':bool(available and (not balance_current or not node_ready)), 'descriptor_history_ready':ledger_ready,'address_revision':__import__('address_destinations').AddressDestinations(self.preferences_path).revision(),'discovery_revision':descriptors['revision'],'node_ready':node_ready,'balances_ready':balance_current,'balance_refresh_required':bool(balance_refresh_required),'descriptors_ready':descriptors['ready'],'bitaroo_as_of_date':self.bitaroo_as_of_date,'ownership_completed_utc':self.ownership_completed_utc,'activity_started':bool(user) and self.activity_started,'process_active':bool(user) and (self.status in {'running','waiting'} or self.active_operations>0 or self.rpc_broker is not None and self.rpc_broker.pending(self.session_dir.name+':'+self.user_id)),'ownership_assignments_ready':assignments_ready,'builder_history_refreshing':assignments_ready and not ready,'ownership_ready':ready,'templates_ready':assignments_ready,'report_ready':report_ready,'report_generation':self.report_generation,'ownership_context':context}
+        return {'login_page':'ownership' if assignment_required else 'balances','ownership_assignment_required':assignment_required,'ownership_available':available,'balances_available':bool(saved_balance),'saved_data':bool(available and (not balance_current or not node_ready)), 'descriptor_history_ready':ledger_ready,'address_revision':__import__('address_destinations').AddressDestinations(self.preferences_path).revision(),'discovery_revision':descriptors['revision'],'node_ready':node_ready,'balances_ready':balance_current,'balance_refresh_required':bool(balance_refresh_required),'descriptors_ready':descriptors['ready'],'bitaroo_as_of_date':self.bitaroo_as_of_date,'ownership_completed_utc':self.ownership_completed_utc,'activity_started':bool(user) and self.activity_started,'process_active':bool(user) and (self.status in {'running','waiting'} or self.active_operations>0 or self.rpc_broker is not None and self.rpc_broker.pending(self.session_dir.name+':'+self.user_id)),'ownership_assignments_ready':assignments_ready,'builder_history_refreshing':assignments_ready and not ready,'ownership_ready':ready,'templates_ready':assignments_ready,'report_ready':report_ready,'report_generation':self.report_generation,'ownership_context':context}
     def invalidate_transaction_refresh(self):
         self.transaction_refresh_context=None;self.transaction_refresh_scanned=False
     def confirm_transaction_refresh(self):
@@ -163,10 +164,6 @@ class Session:
                 'descriptors':dict(display_summary(DescriptorStore(self.preferences_path).summary(),data),ready=access['descriptors_ready']),'inventory':[dict(item,**source_suggestions(item,data['users'])) for item in display_inventory(self.inventory,DescriptorStore(self.preferences_path).read())] if user else [],'inventory_ready':self.inventory_ready if user else False,
                 **access,'address_book':__import__('address_destinations').AddressDestinations(self.preferences_path).overlay(shared_address_book(data,self.address_book or data.get('ownership_runs',{}).get(self.user_id,{}).get('address_book'))) if access['ownership_available'] else None,
                 'restore_error':self.restore_error,'settings':self.settings if user else {},'loaded_slots':{slot:([p.name for p in sorted(path.rglob('*')) if p.is_file()] if path.is_dir() else [path.name]) for slot,path in self.uploads.items()} if user else {}}
-        for kind,page in (('wallet','walletbuilder'),('transaction','builder')):
-            work=result['builders'].get(kind,{})
-            if work.get('workspace') and not work.get('blocked'):
-                result['login_page']=page;break
         for row in result['inventory']:
             if row.get('source') in traits:row['watch_only']=traits[row['source']]
             row['disc_only']=discs.get(row.get('source'),False)

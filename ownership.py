@@ -74,3 +74,33 @@ def apply_ownership(core,snapshot,user,wallets,other,require_bitaroo=True):
         if item['kind']!='bitaroo':own.wallet_statuses[row['name']]=own.PERSONAL if personal(row) else own.EXTERNAL
     own.family_records={r['name']:r for r in resolved.values()};own.family_users={u['id']:u['name'] for u in snapshot['users']}
     return own,[r for r in other if personal(resolved[resource_id('exchange',r.exchange)])]
+
+
+def needs_assignment(config,snapshot,wallets,inventory=()):
+    """Derive shared pending assignments from known resources, never run history."""
+    from builder_identity import resolve
+    import json
+    active={resource_id('descriptor',w['id']) for w in wallets if not w.get('extinct')}
+    def canonical(item):
+        row=dict(item)
+        if row.get('kind')=='descriptor':
+            row['id']=resolve(config,row['id']);row['source']=json.loads(row['id'])[1]
+            if row['id'] not in active:return None
+        return row
+    records={}
+    for item in snapshot.get('ownership',[]):
+        row=canonical(item)
+        if row and (row['id'] not in records or row.get('confirmed')):records[row['id']]=row
+    sources=list(inventory)+list(snapshot.get('ownership',[]))
+    for run in snapshot.get('ownership_runs',{}).values():sources.extend(run.get('inventory',[]))
+    sources.extend({'id':resource_id('descriptor',w['id']),'kind':'descriptor','source':w['id'],'name':w['name']} for w in wallets if not w.get('extinct'))
+    resources={}
+    for item in sources:
+        row=canonical(item)
+        if row:
+            # Display renames are not a missing owner assignment.
+            if row['id'] in records:row['name']=records[row['id']].get('name')
+            resources[row['id']]=row
+    try:resolve_ownership(dict(snapshot,ownership=list(records.values())),list(resources.values()))
+    except MissingOwnership:return True
+    return False
