@@ -44,6 +44,9 @@ def validate(state,users,config=None):
         if row.get('kind') not in ('wallet_transfer','sign_psbt_partial','broadcast_transaction','wallet_retire','wallet_policy_refresh') or row.get('state') not in ('pending','complete','denied','error','recovery_required','cancelled'):raise ValueError('Invalid saved Agent request.')
         if row.get('state')=='cancelled' and row.get('kind') not in ('wallet_retire','sign_psbt_partial','broadcast_transaction','wallet_policy_refresh'):raise ValueError('Invalid cancelled request kind.')
         if row.get('proposal'):canonical(row['proposal'])
+        if row.get('history_sync'):
+            from extinct_history_sync import validate_saved
+            validate_saved(row)
         if row.get('kind')=='wallet_transfer' and row.get('proposal'):
             p=row['proposal']
             if row.get('lifecycle_restore'):

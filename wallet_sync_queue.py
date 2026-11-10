@@ -66,6 +66,9 @@ def schedule(transfers,state):
         if not all(current_agent(hub,n) for n in nodes):
             for row in rows:row['queue_visible']=False
             continue
+        if source.get('history_sync') and not all(__import__('extinct_history_sync').supported(ready.get(n,{})) for n in nodes):
+            for row in rows:row['queue_visible']=False
+            continue
         if any(r.get('proposal') and r['proposal'].get('transfer_version') not in (2,3) for r in rows):
             for row in rows:row.update(state='error',queue_visible=False,message='Old request protocol. Reconcile the local Agents and start a new transfer attempt.')
             continue

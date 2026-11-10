@@ -88,7 +88,7 @@ class Transfers:
             if not rows or len(rows)!=2 or any(r['state']=='recovery_required' for r in rows) or (not refresh_needed and any(r['state'] not in TERMINAL for r in rows)) or all(r['state']=='complete' for r in rows):raise ValueError('Resolve or cancel this attempt on both Agents before retrying.')
             old=next(r for r in rows if r['direction']=='receive');inv=self.hub.inventories.get(old['node_id'],{})
             if not inv.get('complete') or time.monotonic()-self.hub.inventory_times.get(old['node_id'],0)>60:raise ValueError('Wait for the destination wallet inventory to refresh before retrying.')
-            if self.contains([w for w in inv['wallets'] if not w.get('signing_only')],old['public_wallet']):raise ValueError('The destination already has this wallet. No retry is needed.')
+            if not old.get('history_sync') and self.contains([w for w in inv['wallets'] if not w.get('signing_only')],old['public_wallet']):raise ValueError('The destination already has this wallet. No retry is needed.')
             sender=next(r for r in rows if r['direction']=='send');source=self.hub.inventories.get(sender['node_id'],{})
             if not source.get('complete') or time.monotonic()-self.hub.inventory_times.get(sender['node_id'],0)>60:raise ValueError('Wait for the source wallet inventory to refresh before retrying.')
             from extinct_sync import containers
@@ -101,6 +101,7 @@ class Transfers:
             for old in rows:
                 row={k:copy.deepcopy(old[k]) for k in ('kind','node_id','peer_id','direction','descriptor_id','public_wallet','source_has_private_keys','earliest_timestamp','requires_blockchain_redownload')}
                 row.update(transfer_id=ident,state='pending',retry_of=transfer,created_utc=self.hub.utc(),public_wallet=copy.deepcopy(wallet['raw']),source_has_private_keys=wallet['private_keys_enabled'] and not __import__('policy_accounts').shared(wallet['raw']));
+                if old.get('history_sync'):row['history_sync']=copy.deepcopy(old['history_sync'])
                 if wallet.get('subwallets'):row['subwallets']=copy.deepcopy(wallet['subwallets'])
                 if old.get('lifecycle_restore'):row.update(lifecycle_restore=old['lifecycle_restore'],public_wallet=copy.deepcopy(old['public_wallet']),source_has_private_keys=old['source_has_private_keys'])
                 state['requests'][digest({'transfer':ident,'direction':row['direction']})]=row

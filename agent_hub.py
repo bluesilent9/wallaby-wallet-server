@@ -101,7 +101,7 @@ class AgentHub:
             if node in self.inventory_busy or not requested and time.monotonic()-self.inventory_times.get(node,0)<60:return
             self.inventory_busy.add(node);self.inventory_times[node]=time.monotonic()
         try:
-            names=self.rpc(node,'listwallets');directory=self.rpc(node,'listwalletdir');wallets=[];archive_wallets=[]
+            names=self.rpc(node,'listwallets');directory=self.rpc(node,'listwalletdir');wallets=[];archive_wallets=[];extinct_summaries={}
             if not isinstance(names,list) or not all(isinstance(n,str) for n in names) or len(names)>256:raise ValueError('Invalid node wallet list.')
             entries=directory.get('wallets') if isinstance(directory,dict) else None
             if not isinstance(entries,list) or len(entries)>4096 or any(not isinstance(w,dict) or not isinstance(w.get('name'),str) or len(w['name'])>256 for w in entries):raise ValueError('Invalid node wallet directory.')
@@ -113,6 +113,10 @@ class AgentHub:
                 if historical:
                     if info.get('private_keys_enabled') is not False:raise ValueError('Historical archive must have private keys disabled.')
                     archive_wallets.append(name)
+                    connection=self.registry.connections.get(token,{})
+                    if name in ('Wallaby Extinct','Extinct') and not self.foreground_active(node) and __import__('extinct_history_sync').supported(connection):
+                        try:extinct_summaries[name]=__import__('extinct_history_sync').validate(self.rpc(node,'wallaby_extinct_summary',[],name))
+                        except ValueError as exc:self.registry.diagnostic_log.append('Wallet sync','Extinct summary unavailable · node='+node[:12]+' · '+str(exc)[:180])
                     if not raw.get('descriptors'):continue
                 checked=clean_wallet(raw)
                 item={'name':name,'signing_only':info['walletname']!=name,'id':checked['id'],'raw':checked['raw'],'private_keys_enabled':info.get('private_keys_enabled') is True,'scanning':bool(info.get('scanning'))}
@@ -126,7 +130,7 @@ class AgentHub:
                     w=child['wallet'];wallets.append(dict(item,id=w['id'],raw=w['raw'],extinct=bool(w.get('extinct')),address_labels=w.get('address_labels',{})))
             with self.lock:
                 if token not in self.registry.connections:return
-                self.inventories[node]={'wallets':wallets,'archive_wallets':archive_wallets,'complete':not unloaded,'loaded_complete':True,'unloaded_wallets':unloaded,'scanned_utc':self.utc(),
+                self.inventories[node]={'wallets':wallets,'archive_wallets':archive_wallets,'extinct_summaries':extinct_summaries,'history_checked_at':time.monotonic(),'complete':not unloaded,'loaded_complete':True,'unloaded_wallets':unloaded,'scanned_utc':self.utc(),
                     **({'error':'Loaded wallets are available. '+str(len(unloaded))+' unloaded wallet folders prevent missing-wallet sync checks.'} if unloaded else {})}
             self.inventory_display[node]={'token':token,'inventory':copy.deepcopy(self.inventories[node])}
             signature=(tuple(names),tuple(unloaded))
@@ -224,6 +228,8 @@ class AgentHub:
                         key=digest({'transfer':ident,'direction':direction})
                         if key in state['requests']:continue
                         state['requests'][key]={'kind':'wallet_transfer','node_id':node,'peer_id':peer,'direction':direction,'transfer_id':ident,'state':'pending','descriptor_id':wallet['id'],'public_wallet':wallet['raw'],'source_has_private_keys':wallet['private_keys_enabled'] and not __import__('policy_accounts').shared(wallet['raw']),'earliest_timestamp':earliest,'requires_blockchain_redownload':requires,'created_utc':self.utc(),**({'subwallets':wallet['subwallets']} if wallet.get('extinct') else {})}
+        from extinct_history_sync import schedule as schedule_history
+        schedule_history(self,state,ready)
     @staticmethod
     def utc():
         from datetime import datetime,timezone

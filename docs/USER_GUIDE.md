@@ -439,3 +439,10 @@ Login opens Ownership only when a known wallet or exchange currently needs an as
 Use Agent Build 70 with Server Build 6 to see missing-wallet offers on the Agent's Synchronisation page before pairing the Agents. An offer is informational. Pair the named Agents before reviewing and approving a real transfer. You can deny an incoming wallet on the receiving Agent without pairing first; its local deny list persists and can be changed there.
 
 An offer waiting for pairing or current inventory is not a failed transfer. Existing watch copies do not automatically become private-key copies, and intentionally separate multisig signer wallets are not cloned as missing replicas.
+
+
+## Wallet Server V1 Build 7 Extinct history updates
+
+With Agent Build 78, periodic low-priority inventory compares small Extinct Wallet history fingerprints. If Agents disagree even though they hold the same addresses, a normal sync offer can appear on their Synchronisation pages. Pair and review it just like other wallet sync requests. The actual history is transferred directly between Agents; the Server does not supply historical records.
+
+This does not silently replace an archive or retire an active wallet. The receiving Agent verifies incoming records and preserves its own history and LOST labels. Conflicts or uncovered legacy history need local resolution. Denials remain local, and failed operations require deliberate retry after reconciliation. New blocks alone do not create repeated offers.
