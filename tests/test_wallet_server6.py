@@ -20,9 +20,9 @@ class Offers(unittest.TestCase):
   self.assertFalse(any(row.get('proposal') for row in self.hub.read()['requests'].values()))
  def test_ready_offer_links_to_exact_executable_transfer_and_stable_revision(self):
   r=self.exchange(self.f.b);o=self.offers(r);q=self.queue(r);self.assertEqual(o['offers'][0]['transfer_id'],q[0]['transfer_id']);self.assertEqual(o['offers'][0]['status'],'ready');self.assertEqual(self.offers(self.exchange(self.f.b)),o)
- def test_agent_denial_withdraws_offer_and_reenable_keeps_pairing_required(self):
+ def test_agent_denial_keeps_discovery_and_reenable_keeps_pairing_required(self):
   self.hub.relay.channels.clear();before=self.offers(self.exchange(self.f.b));self.hub.permissions.live[self.f.b['node_id']]['record']['policies']=[policy_id(self.f.wallet['raw'])]
-  denied=self.exchange(self.f.b);self.assertFalse(self.offers(denied)['offers']);self.assertFalse(self.queue(denied));self.assertGreater(self.offers(denied)['revision'],before['revision']);self.hub.permissions.live[self.f.b['node_id']]['record']['policies']=[]
+  denied=self.exchange(self.f.b);self.assertEqual(self.offers(denied)['offers'][0]['status'],'disabled');self.assertEqual(self.offers(denied)['offers'][0]['peer'],before['offers'][0]['peer']);self.assertFalse(self.queue(denied));self.assertGreater(self.offers(denied)['revision'],before['revision']);self.hub.permissions.live[self.f.b['node_id']]['record']['policies']=[]
   self.assertEqual(self.offers(self.exchange(self.f.b))['offers'][0]['status'],'secure_pairing_required')
  def test_completed_import_withdraws_both_offers_without_deleting_audit(self):
   self.exchange(self.f.b)

@@ -45,7 +45,7 @@ def schedule(hub,state,ready):
         if any(r.get('kind')=='wallet_retire' and r.get('state') in ('pending','recovery_required') and r.get('node_id') in (a,b) and not r.get('node_deleted') for r in state['requests'].values()):continue
         pairs=hub.transfers.pairs(state)
         if any(len(rows)==2 and {r['node_id'] for r in rows}=={a,b} and all(r['public_wallet']['descriptors'] and all(d['desc'].startswith('addr(') for d in r['public_wallet']['descriptors']) for r in rows) and any(r['state'] in ('pending','recovery_required') for r in rows) and not any(r.get('superseded_attempt') or r.get('superseded_container') for r in rows) for rows in pairs.values()):continue
-        if not hub.permissions.allows_offer(target,wallet['raw']) and ('wallet_sync_offers_v1' not in hub.caps.get(target,set()) or hub.permissions.permits(target,wallet['raw']) is False):continue
+        if not hub.permissions.allows_offer(target,wallet['raw']) and 'wallet_sync_offers_v1' not in hub.caps.get(target,set()):continue
         binding={source:summary['digest'],target:other['digest']}
         ident=digest({'purpose':'extinct_history_sync','source':source,'target':target,'summaries':binding})
         # Same observed mismatch is offered once, including denied/error results.

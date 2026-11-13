@@ -27,7 +27,6 @@ def snapshot(transfers,state,node):
             if not __import__('wallet_lifecycle').permitted_transfer(state,source):continue
         elif suppress_sync(state,raw):continue
         if any(o['state']=='active' and equivalent(o['raw'],raw) for o in renames):continue
-        if hub.permissions.permits(receiver['node_id'],raw) is False:continue
         # An obsolete route must not reappear alongside its replacement.
         if any(r.get('retry_of')==ident for r in state['requests'].values()):continue
         code=reason(hub,state,rows)[0] or 'ready'

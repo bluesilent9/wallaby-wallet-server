@@ -34,9 +34,9 @@ class HistoryOffers(unittest.TestCase):
   self.hub.inventories[self.f.a['node_id']]['extinct_summaries']['Wallaby Extinct']=self.summary(complete=False);self.hub.inventories[self.f.b['node_id']]['extinct_summaries']['Wallaby Extinct']=self.summary(3,complete=False);self.exchange(self.f.b);self.assertFalse(self.rows())
   self.hub.inventories[self.f.a['node_id']]['extinct_summaries']['Wallaby Extinct']=self.sa;self.hub.inventory_display[self.f.a['node_id']]['token']='old';self.exchange(self.f.b);self.assertFalse(self.rows())
   self.hub.inventory_display[self.f.a['node_id']]['token']=self.f.a['connection_token'];self.hub.inventory_times[self.f.a['node_id']]=0;self.exchange(self.f.b);self.assertFalse(self.rows())
- def test_local_denial_prevents_new_offer(self):
+ def test_local_denial_preserves_public_discovery_without_execution(self):
   from extinct_sync import containers
-  raw=containers(self.children)[0]['raw'];self.hub.permissions.live[self.f.b['node_id']]['record']['policies']=[policy_id(raw)];self.exchange(self.f.b);self.assertFalse(self.rows())
+  raw=containers(self.children)[0]['raw'];self.hub.permissions.live[self.f.b['node_id']]['record']['policies']=[policy_id(raw)];reply=self.exchange(self.f.b);self.assertEqual(len(self.rows()),2);self.assertFalse(any(r.get('proposal') for r in self.rows()));self.assertEqual(next(p for p in reply['proposals'] if p['kind']=='wallet_sync_offers')['offers'][0]['status'],'disabled');self.assertFalse(next(p for p in reply['proposals'] if p['kind']=='wallet_sync_queue')['requests'])
  def test_repeated_poll_and_terminal_outcomes_do_not_reissue_same_mismatch(self):
   self.exchange(self.f.b);before=copy.deepcopy(self.hub.read());self.exchange(self.f.b);self.assertEqual(self.hub.read()['requests'],before['requests'])
   for result in ('error','denied','complete'):

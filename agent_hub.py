@@ -205,7 +205,7 @@ class AgentHub:
                     if wallet.get('signing_only'):continue
                     # An unknown receive preference may delay execution, but
                     # must not hide non-authorising public discovery.
-                    if not self.permissions.allows_offer(target,wallet['raw']) and ('wallet_sync_offers_v1' not in self.caps.get(target,set()) or self.permissions.permits(target,wallet['raw']) is False):continue
+                    if not self.permissions.allows_offer(target,wallet['raw']) and 'wallet_sync_offers_v1' not in self.caps.get(target,set()):continue
                     from wallet_retirement import suppress_sync
                     if suppress_sync(state,wallet['raw']):continue
                     try:
