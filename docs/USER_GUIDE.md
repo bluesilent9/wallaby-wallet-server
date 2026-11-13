@@ -446,3 +446,8 @@ An offer waiting for pairing or current inventory is not a failed transfer. Exis
 With Agent Build 78, periodic low-priority inventory compares small Extinct Wallet history fingerprints. If Agents disagree even though they hold the same addresses, a normal sync offer can appear on their Synchronisation pages. Pair and review it just like other wallet sync requests. The actual history is transferred directly between Agents; the Server does not supply historical records.
 
 This does not silently replace an archive or retire an active wallet. The receiving Agent verifies incoming records and preserves its own history and LOST labels. Conflicts or uncovered legacy history need local resolution. Denials remain local, and failed operations require deliberate retry after reconciliation. New blocks alone do not create repeated offers.
+
+
+## Build 8 stale sync invitations
+
+An unattempted IPv6-bound invitation can now be retired and replaced with an identity-bound version-3 invitation. Current Agents need no published IPv6 address. Local receive denials still apply. Earlier proposals and outcomes remain recorded; previous approvals are never reused. A previously signed review or attempted operation must be reconciled before a fresh review is requested. No profile reset or wallet recreation is needed.

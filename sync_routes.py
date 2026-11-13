@@ -13,12 +13,17 @@ def renew(transfers,state):
         if len(rows)!=2 or any(r['state']!='pending' or r.get('superseded_attempt') or r.get('superseded_container') for r in rows):continue
         if any(r.get('retry_of')==ident for r in state['requests'].values()):continue
         if not all(r.get('proposal') for r in rows):continue
-        if any(r['proposal'].get('transfer_version')==3 for r in rows):continue
+        if any(r['proposal'].get('transfer_version')!=2 for r in rows):continue
         nodes={r['node_id'] for r in rows}
         if not nodes<=live.keys() or any(transfers.is_busy(n) for n in nodes):continue
-        if any(not state['nodes'].get(n,{}).get('ipv6') for n in nodes):continue
-        changed=any(r['proposal']['node_ipv6']!=state['nodes'][r['node_id']]['ipv6'] or r['proposal']['peer']['ipv6']!=state['nodes'][r['peer_id']]['ipv6'] for r in rows)
-        if not changed:continue
+        # A replacement is a new identity-bound v3 invitation, not another
+        # IPv6 request. Native peers need not advertise an IP to the Server.
+        changed=any(r['proposal']['node_ipv6']!=state['nodes'].get(r['node_id'],{}).get('ipv6') or r['proposal']['peer']['ipv6']!=state['nodes'].get(r['peer_id'],{}).get('ipv6') for r in rows)
+        native_peers=all('wallet_relay_v1' in hub.caps.get(n,set()) for n in nodes)
+        if not changed and not native_peers:continue
+        # A signed public review can already have enabled a local operation.
+        # Never infer 'unattempted' from pending state or current disconnection.
+        if any(r.get('signed_preview') or r.get('preview_proof') or r.get('preview_notice') or r.get('active_pair') or r.get('finished_utc') or r.get('result') for r in rows):continue
         receiver=next(r for r in rows if r['direction']=='receive')
         if hub.permissions.permits(receiver['node_id'],receiver['public_wallet']) is not True:continue
         if any(not hub.inventories.get(n,{}).get('complete') or time.monotonic()-hub.inventory_times.get(n,0)>60 for n in nodes):continue
@@ -29,16 +34,17 @@ def renew(transfers,state):
         from wallet_preview import policies
         private=not __import__('policy_accounts').shared(sender['public_wallet']) and any(w.get('private_keys_enabled') and policies(sender['public_wallet'],True)<=policies(w['raw'],True) for w in origin)
         dest=hub.inventories[receiver['node_id']]['wallets']
-        if transfers.contains([w for w in dest if not w.get('signing_only')],receiver['public_wallet']):continue
+        if not receiver.get('history_sync') and transfers.contains([w for w in dest if not w.get('signing_only')],receiver['public_wallet']):continue
         fresh=secrets.token_hex(32)
         for old in rows:
-            old.update(superseded_attempt=True,queue_visible=False,superseded_message='Peer network address changed; replaced by a new public invitation. Earlier approvals and outcomes were not reused.')
+            old.update(superseded_attempt=True,queue_visible=False,superseded_message='Unattempted IPv6-bound review replaced by a new identity-bound invitation. Earlier approvals and outcomes were not reused.')
             row={k:copy.deepcopy(old[k]) for k in ('kind','node_id','peer_id','direction','descriptor_id','public_wallet','source_has_private_keys','earliest_timestamp','requires_blockchain_redownload')}
             if old.get('subwallets'):row['subwallets']=copy.deepcopy(old['subwallets'])
             if old.get('lifecycle_restore'):row['lifecycle_restore']=old['lifecycle_restore']
+            if old.get('history_sync'):row['history_sync']=copy.deepcopy(old['history_sync'])
             row.update(transfer_id=fresh,state='pending',retry_of=ident,route_refresh=True,created_utc=hub.utc(),source_has_private_keys=old['source_has_private_keys'] if old.get('lifecycle_restore') else private)
             state['requests'][digest({'transfer':fresh,'direction':row['direction']})]=row
-        hub.registry.diagnostic_log.append('Wallet sync','Peer route changed; new public review requested · previous='+ident[:12]+' · request='+fresh[:12]+'. Local approval is required.')
+        hub.registry.diagnostic_log.append('Wallet sync','Unattempted IPv6 review retired; new identity-bound public review requested · previous='+ident[:12]+' · request='+fresh[:12]+'. Local approval is required.')
 
 def prior_in_progress(transfers,state,rows):
     """A late successful/uncertain old operation takes priority over a new invite."""
