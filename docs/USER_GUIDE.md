@@ -483,3 +483,6 @@ Build 13 adds the Agent Build 93 disc-source display contract. Signed version-3 
 
 
 Build 14 adds an administrator SSH forwarding audit and selected-key repair tool. It addresses an SSH key enrolled for a single media port being reused by an Agent: SSH login succeeds but the Agent forward is denied before reaching Wallet Server. Administrators can explicitly remove port restrictions for one trusted key, with a backup and no changes to other accounts or global sshd policy. Installation does not change SSH permissions. See [SSH access repair](docs/SSH_ACCESS.md).
+
+
+Build 15 fixes first-time unpaired wallet discovery: a successfully scanned loaded source remains visible even when that Agent has unrelated unloaded folders. Freshness and connection checks apply to partial inventories; destination absence still requires its complete inventory. New Agents also share their signed permission-handshake identity with the relay identity store, without running Wallet Builder or replacing an existing Builder identity/challenge. Discovery and deny controls work before direct pairing; transfers still require pairing and local permission. No Agent update or profile reset is required.

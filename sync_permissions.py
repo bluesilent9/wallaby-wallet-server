@@ -1,5 +1,5 @@
 """Observe Agent-owned receive permissions. No Wallet Server denial list or restore authority."""
-import re,secrets,time,threading,json
+import copy,re,secrets,time,threading,json
 from functools import lru_cache
 from agent_hub import digest
 from setup_signatures import verify,fingerprint
@@ -58,10 +58,18 @@ class Permissions:
         row=self.current(node);m=envelope.get('message',{}) if isinstance(envelope,dict) else {}
         if not row or m.get('challenge')!=row['identity_challenge']:return False
         key=envelope.get('public_key');verify(self.hub.config,envelope,key)
-        if set(m)!={'version','challenge','public_key','fingerprint','hostname'} or m['version']!=1 or m['public_key']!=key or m['fingerprint']!=fingerprint(key):raise ValueError('Invalid Agent permission identity response.')
-        known=self.hub.wallet_builder.read()['identities'].get(node)
-        if known and known['public_key']!=key:raise ValueError('Agent identity differs from the previously observed setup identity. Reconcile locally.')
-        with self.lock:row['identity']=key
+        if set(m)!={'version','challenge','public_key','fingerprint','hostname'} or type(m['version']) is not int or m['version']!=1 or m['public_key']!=key or m['fingerprint']!=fingerprint(key) or not isinstance(m['hostname'],str) or not m['hostname'].strip() or len(m['hostname'])>253 or any(ord(c)<32 for c in m['hostname']):raise ValueError('Invalid Agent permission identity response.')
+        with self.lock:
+            # Signature verification may outlast a reconnect. Never pin evidence
+            # from an obsolete connection or overwrite another verified key.
+            if self.current(node) is not row:return False
+            with self.hub.wallet_builder.edit() as identities:
+                known=identities['identities'].get(node)
+                if known and known['public_key']!=key:raise ValueError('Agent identity differs from the previously observed setup identity. Reconcile locally.')
+                # Keep an existing Wallet Builder challenge/identity envelope
+                # intact; a routine permission handshake must not stale it.
+                if not known:identities['identities'][node]=copy.deepcopy(envelope)
+            row['identity']=key
         return True
     def accept(self,node,p,item_id=None):
         row=self.current(node)

@@ -199,7 +199,10 @@ class AgentHub:
             for source in sorted(ready,key=lambda node:(-sum(len(w['raw']['descriptors']) for w in self.inventories.get(node,{}).get('wallets',[]) if w.get('extinct')),node)):
                 if source==target:continue
                 origin=self.inventories.get(source,{})
-                if not origin.get('complete'):continue
+                # Loaded source policies prove availability even if unrelated
+                # folders are unloaded. They do not prove destination absence.
+                loaded_current=(origin.get('loaded_complete') and self.inventory_display.get(source,{}).get('token')==ready[source]['token'] and time.monotonic()-origin.get('history_checked_at',self.inventory_times.get(source,0))<=90)
+                if not origin.get('complete') and not loaded_current:continue
                 from extinct_sync import containers,supersede_children
                 for wallet in containers(origin['wallets']):
                     if wallet.get('extinct'):supersede_children(state,target,wallet)
