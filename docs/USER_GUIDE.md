@@ -451,3 +451,8 @@ This does not silently replace an archive or retire an active wallet. The receiv
 ## Build 8 stale sync invitations
 
 An unattempted IPv6-bound invitation can now be retired and replaced with an identity-bound version-3 invitation. Current Agents need no published IPv6 address. Local receive denials still apply. Earlier proposals and outcomes remain recorded; previous approvals are never reused. A previously signed review or attempted operation must be reconciled before a fresh review is requested. No profile reset or wallet recreation is needed.
+
+
+## Wallet Server Build 9 loaded-wallet sync renewal
+
+An unrelated unloaded wallet folder no longer prevents automatic replacement of an existing stale IPv6 invitation. Both Agents must have fresh, successfully collected loaded-wallet inventories, the required source wallet must be present, and receive permission and current paired transport checks still apply. The replacement carries a fresh ID/challenge and no old approval. Failed scans, missing sources, previous signed reviews and real operation outcomes remain protected. Unloaded folders are still not proof that a missing wallet is absent, so this change does not trigger speculative new missing-wallet transfers.

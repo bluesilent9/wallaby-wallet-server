@@ -26,7 +26,9 @@ def renew(transfers,state):
         if any(r.get('signed_preview') or r.get('preview_proof') or r.get('preview_notice') or r.get('active_pair') or r.get('finished_utc') or r.get('result') for r in rows):continue
         receiver=next(r for r in rows if r['direction']=='receive')
         if hub.permissions.permits(receiver['node_id'],receiver['public_wallet']) is not True:continue
-        if any(not hub.inventories.get(n,{}).get('complete') or time.monotonic()-hub.inventory_times.get(n,0)>60 for n in nodes):continue
+        # Renew a known invitation using verified loaded-wallet facts. Unrelated
+        # unloaded folders prevent proving absence, not reading a present source.
+        if any(not (hub.inventories.get(n,{}).get('complete') or hub.inventories.get(n,{}).get('loaded_complete')) or time.monotonic()-hub.inventory_times.get(n,0)>60 for n in nodes):continue
         if any(hub.registry.health.status(live[n]).get('state')!='ready' for n in nodes):continue
         sender=next(r for r in rows if r['direction']=='send')
         origin=[w for w in hub.inventories[sender['node_id']]['wallets'] if not w.get('signing_only')]
