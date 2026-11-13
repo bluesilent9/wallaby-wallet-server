@@ -219,6 +219,7 @@ class FamilyStore:
             for r in data['ownership']:
                 if r.get('owner_id')==user_id:r.update(owner_id=None,external=False,confirmed=False)
         self._discard_ownership_files(previous)
+        __import__('statement_records').StatementRecords(self.path).discard({user_id,user_id+':smsf'})
         __import__('salary_builder').SalaryStore(self.path).discard(user_id)
         return self.snapshot()
     def _discard_ownership_files(self,meta):
@@ -231,6 +232,7 @@ class FamilyStore:
             previous=list(data.get('ownership_runs',{}).values())
             rev=data['revision'];data.clear();data.update(_fresh());data['revision']=rev
         for meta in previous:self._discard_ownership_files(meta)
+        __import__('statement_records').StatementRecords(self.path).discard()
         import shutil
         shutil.rmtree(data_directory(self.path)/'reports',ignore_errors=True)
         return self.snapshot()

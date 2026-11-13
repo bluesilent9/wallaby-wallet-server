@@ -27,6 +27,8 @@ class WorkflowStore:
             self._write(data)
     def sync_bitaroo_warnings(self,user,snapshot,local_date,zone,page):
         from bitaroo_freshness import warnings
+        from statement_records import StatementRecords
+        snapshot=dict(snapshot,accepted_bitaroo_statements=StatementRecords(self.config).dates())
         pending=warnings(snapshot,local_date,zone);reading=page in ('balances','vaults','notifications')
         with storage_lock(self.config):
             state=self._read();before=json.dumps(state,sort_keys=True);rows=state['notices'].setdefault(user,[])

@@ -26,7 +26,10 @@ def warnings(snapshot,local_date,zone='UTC'):
             if not active:continue
             ledger=meta.get('bitaroo_smsf_data' if smsf else 'bitaroo_data',{})
             stamps=[p.get('end') for p in ledger.get('periods',{}).values() if p.get('end')]
-            stamp=max(stamps,default=None) or (meta.get('bitaroo_as_of_date') if not smsf else None)
+            saved=max(stamps,default=None) or (meta.get('bitaroo_as_of_date') if not smsf else None)
+            # Validated PDF coverage is independent of wallet-history success.
+            accepted=snapshot.get('accepted_bitaroo_statements',{}).get(key)
+            stamp=max((value for value in (saved,accepted) if value),default=None)
             age,report_date=statement_age(stamp,local_date,zone)
             if age is None or age<7:continue
             label=user['name']+(' — SMSF' if smsf else '')

@@ -62,7 +62,8 @@ class BackgroundDiscovery:
         try:
             loader=NodeWalletLoader(self.registry,self.log,self.stop,priority=100,pause=self.pause,nodes=nodes,tolerate_errors=True)
             fresh=loader.collect();superseded={}
-            from retired_catalog import reconcile
+            from retired_catalog import reconcile,upgrade
+            upgrade(self.registry.hub,old['wallets'])
             fresh,retired_aliases=reconcile(fresh,old['wallets'],self.registry.hub.read())
             from setup_wallet_views import SetupWalletViews
             views=SetupWalletViews(self.config,[{'raw':w['raw']} for w in fresh+old['wallets']])

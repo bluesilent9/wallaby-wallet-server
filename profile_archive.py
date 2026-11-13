@@ -149,6 +149,11 @@ def validate(root):
     if (root/'data/salary-builder.json').exists():
         from salary_builder import validate as validate_salary
         validate_salary(json.loads((root/'data/salary-builder.json').read_text()),ids)
+    from statement_records import StatementRecords
+    statement_records=StatementRecords(cfg)
+    for key,row in statement_records.read()['accounts'].items():
+        if key.removesuffix(':smsf') not in ids:raise ValueError('Unknown saved statement account.')
+        statement_records.verify(row)
     with tempfile.TemporaryDirectory(dir=root,prefix='.verify-') as temp:
         for uid in raw.get('ownership_runs',{}):
             if uid not in ids:raise ValueError('Unknown Ownership profile.')

@@ -1,8 +1,8 @@
 # Install Wallaby Wallet Server
 
-Development V1 Build 10, Ubuntu/Kubuntu 26.04 LTS. No Stable release is published.
+Development V1 Build 11, Ubuntu/Kubuntu 26.04 LTS. No Stable release is published.
 
-Download `wallaby-wallet-server_1.0.0~dev10_all.deb` and `SHA256SUMS.txt` from this repository's Development/dist directory. Run `sha256sum -c SHA256SUMS.txt`, then `sudo apt install ./wallaby-wallet-server_1.0.0~dev10_all.deb` in that directory.
+Download `wallaby-wallet-server_1.0.0~dev11_all.deb` and `SHA256SUMS.txt` from this repository's Development/dist directory. Run `sha256sum -c SHA256SUMS.txt`, then `sudo apt install ./wallaby-wallet-server_1.0.0~dev11_all.deb` in that directory.
 
 The system service is `wallaby-wallet-server.service`. It starts at installation and boot, running as the unprivileged `wallaby-wallet-server` system user. Application code is in `/usr/lib/wallaby-wallet-server`; saved records are in `/var/lib/wallaby-wallet-server`; disposable runtime state is in `/var/cache/wallaby-wallet-server`. Removal/purge preserves records. Browser and Agent access continue through your existing SSH setup; their loopback ports remain 38951 and 56443.
 
@@ -12,7 +12,7 @@ APT replaces the old `wallaby-dashboard` package. The pre-install step stops bot
 
 If both old and new data locations already contain records, the installer stops with an explanation instead of mixing them. Keep both directories and resolve which profile should be retained. A failed directory move is rolled back. Stop any manually launched server before installation. The migration does not delete wallet files on Agents or modify Bitcoin Core.
 
-For a source installation use `python3 launch_wallaby_wallet_server.py --no-browser`. The earlier launcher module remains an import/entry-point alias for source installations. The current product version is V1 Build 10; the package's distinct name avoids downgrading an installed Dashboard dev100 package in place.
+For a source installation use `python3 launch_wallaby_wallet_server.py --no-browser`. The earlier launcher module remains an import/entry-point alias for source installations. The current product version is V1 Build 11; the package's distinct name avoids downgrading an installed Dashboard dev110 package in place.
 
 ## Mobile connections
 
