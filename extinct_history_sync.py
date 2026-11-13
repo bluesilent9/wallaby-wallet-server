@@ -18,7 +18,7 @@ def supported(connection):return METHOD in connection.get('rpc_methods',[])
 
 def group(hub,node):
     inv=hub.inventories.get(node,{})
-    if not inv.get('complete') or any(w.get('scanning') for w in inv.get('wallets',[])):return None
+    if not (inv.get('complete') or inv.get('loaded_complete')) or any(w.get('scanning') for w in inv.get('wallets',[])):return None
     summaries=inv.get('extinct_summaries',{})
     if len(summaries)!=1:return None
     summary=validate(next(iter(summaries.values())))

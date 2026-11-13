@@ -26,8 +26,8 @@ class Routes(unittest.TestCase):
    current=state['requests'][key];self.assertEqual(current['proposal'],old['proposal']);self.assertEqual(current['state'],'pending');self.assertTrue(current['superseded_attempt'])
  def test_repeated_poll_creates_only_one_replacement(self):
   self.refresh();self.refresh();self.assertEqual(len(self.hub.read()['requests']),4)
- def test_signed_preview_or_operation_evidence_prevents_automatic_replacement(self):
-  for field,value in (('signed_preview',{'retained':'proof'}),('preview_proof','old proof'),('active_pair',True),('finished_utc','2026-11-13T01:00:00Z'),('result',{'status':'unknown'})):
+ def test_operation_evidence_prevents_automatic_replacement(self):
+  for field,value in (('active_pair',True),('finished_utc','2026-11-13T01:00:00Z'),('result',{'status':'unknown'})):
    with self.hub.edit() as state:
     state['requests']=copy.deepcopy(self.old);next(iter(state['requests'].values()))[field]=value
    state=self.refresh();self.assertEqual(len(state['requests']),2,field);self.assertEqual(next(iter(state['requests'].values()))[field],value)

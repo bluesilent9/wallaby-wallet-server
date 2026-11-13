@@ -62,10 +62,12 @@ class BackgroundDiscovery:
         try:
             loader=NodeWalletLoader(self.registry,self.log,self.stop,priority=100,pause=self.pause,nodes=nodes,tolerate_errors=True)
             fresh=loader.collect();superseded={}
+            from retired_catalog import reconcile
+            fresh,retired_aliases=reconcile(fresh,old['wallets'],self.registry.hub.read())
             from setup_wallet_views import SetupWalletViews
             views=SetupWalletViews(self.config,[{'raw':w['raw']} for w in fresh+old['wallets']])
             fresh_ids={w['id'] for w in fresh}
-            removed={w['id'] for w in old['wallets'] if w['id'] not in fresh_ids and views.hide_cached(w)}
+            removed=retired_aliases|{w['id'] for w in old['wallets'] if w['id'] not in fresh_ids and views.hide_cached(w)}
             merged={w['id']:copy.deepcopy(w) for w in old['wallets'] if w['id'] not in removed}
             # Match locking policies, not Core names (or key origin annotations).
             for w in fresh:

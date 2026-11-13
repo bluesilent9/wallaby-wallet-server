@@ -456,3 +456,12 @@ An unattempted IPv6-bound invitation can now be retired and replaced with an ide
 ## Wallet Server Build 9 loaded-wallet sync renewal
 
 An unrelated unloaded wallet folder no longer prevents automatic replacement of an existing stale IPv6 invitation. Both Agents must have fresh, successfully collected loaded-wallet inventories, the required source wallet must be present, and receive permission and current paired transport checks still apply. The replacement carries a fresh ID/challenge and no old approval. Failed scans, missing sources, previous signed reviews and real operation outcomes remain protected. Unloaded folders are still not proof that a missing wallet is absent, so this change does not trigger speculative new missing-wallet transfers.
+
+
+## Wallet Server Build 10 sync renewal and retired-wallet ledgers
+
+A signed public preview is produced before the Agent user authorises a transfer. It remains recorded with the original frozen invitation but no longer prevents a stale IPv6 invitation from being replaced automatically by a new paired-identity review. Old preview signatures, choices and approvals are not carried forward. The current Agent preserves attempted/active work and blocks parallel execution. A late outcome from an original attempt withdraws its replacement from the current review queue. Real outcomes and local receive denials are never silently retried.
+
+For Extinct containers, matching watched addresses do not prove that transaction history is current. Existing stale requests can renew for direct Agent comparison even when those addresses already exist on the receiving node. Fresh Extinct summary mismatches also remain discoverable when unrelated wallet folders are unloaded. Failure to read the required loaded wallets still blocks the work. Renewal diagnostics now identify which readiness check deferred an invitation.
+
+After locally approved retirement preservation has been verified, the original saved wallet and its address-only archive are one account. Background discovery reconciles them using the exact recorded manifest, labels and preservation evidence, rather than names alone. It retains the original wallet identity, owner assignment and previously verified history, using the current archive for node readback. A later restoration retains that account identity and returns it to active classification; private-key availability is still checked separately. Unknown or genuinely conflicting script ownership is not suppressed: the error identifies both wallet names and neither balance is accepted twice.

@@ -5,7 +5,7 @@ def reason(hub,state,rows):
     if not source or not target:return 'invalid_pair','The paired request is incomplete; reconcile locally.'
     if target['state']=='complete':return None,None
     from sync_routes import prior_in_progress
-    if prior_in_progress(hub.transfers,state,rows):return 'earlier_operation','An earlier operation reported wallet delivery or history recovery. Reconcile that result before reviewing a replacement invitation.'
+    if prior_in_progress(hub.transfers,state,rows):return 'earlier_operation','An earlier operation reported an outcome. Review that result before considering a replacement invitation.'
     if any(r['state']=='recovery_required' for r in rows):return 'history_recovery','Wallet data was received; finish history recovery on the Agent. No file transfer will be repeated.'
     if any(r['state'] in ('denied','error') for r in rows):return 'local_outcome','A previous attempt was declined or failed. Reconcile both Agents before starting a new review.'
     if any(r.get('preview_notice') for r in rows):return 'preview_changed','The sender reported a different snapshot. Reconcile both Agents, then start a fresh review.'
@@ -19,7 +19,7 @@ def reason(hub,state,rows):
         if p and p.get('transfer_version')==3:
             if not hub.relay.mesh([row['node_id'],row['peer_id']])['ready']:return 'secure_pairing_required','QR-pair both Agents and reconnect their end-to-end encrypted channel.'
             continue
-        if p and (p['node_ipv6']!=state['nodes'].get(row['node_id'],{}).get('ipv6') or p['peer']['ipv6']!=state['nodes'].get(row['peer_id'],{}).get('ipv6')):return 'peer_changed','A paired IPv6 address changed. Reconcile both Agents, then start a fresh review; the old endpoints were not silently replaced.'
+        if p and (p['node_ipv6']!=state['nodes'].get(row['node_id'],{}).get('ipv6') or p['peer']['ipv6']!=state['nodes'].get(row['peer_id'],{}).get('ipv6')):return 'peer_changed','The old IPv6 invitation is waiting for automatic replacement using the paired Agent identities. Fresh loaded-wallet checks and local receive permission are required.'
     if not all(r.get('proposal') for r in rows):return 'discovery_pending','Waiting for both node inventories, blockchain checks and peer addresses before preparing local reviews.'
     if not all(r.get('queue_visible') for r in rows):return 'review_paused','The review is paused by node readiness, policy, rename or retirement checks.'
     return None,None

@@ -38,7 +38,7 @@ def scan(catalog,client,progress=print):
             policy,_,_=parse_policy(row['desc'].split('#')[0])
             if isinstance(policy,AddressPolicy):
                 key=policy.script_pubkey().data.hex();previous=scripts.get(key)
-                if previous and previous['wallet_id']!=uid:raise ValueError('Two distinct wallets claim the same script.')
+                if previous and previous['wallet_id']!=uid:raise ValueError('Two distinct wallets claim the same script: '+next(w['name'] for w in catalog['wallets'] if w['id']==previous['wallet_id'])+' ['+previous['wallet_id'][:12]+'] and '+wallet['name']+' ['+uid[:12]+']. No duplicate balance was accepted.')
                 scripts[key]={'wallet_id':uid,'script':key,'address':policy.address,'index':-1,'internal':None,'descriptor':0,'branch':0}
         # Core's wallet ledger includes every known received output, including
         # change. It is authoritative even for hardened legacy policies.
@@ -51,7 +51,7 @@ def scan(catalog,client,progress=print):
             n=row.get('vout')
             if type(n) is not int or not 0<=n<len(tx['vout']):raise ValueError('Core wallet output index is invalid')
             output=tx['vout'][n];script=output['scriptpubkey'];previous=scripts.get(script)
-            if previous and previous['wallet_id']!=uid:raise ValueError('Two distinct wallets claim the same script.')
+            if previous and previous['wallet_id']!=uid:raise ValueError('Two distinct wallets claim the same script: '+next(w['name'] for w in catalog['wallets'] if w['id']==previous['wallet_id'])+' ['+previous['wallet_id'][:12]+'] and '+wallet['name']+' ['+uid[:12]+']. No duplicate balance was accepted.')
             scripts[script]={'wallet_id':uid,'script':script,'address':output.get('scriptpubkey_address'),'index':-1,'internal':None,'descriptor':0,'branch':0}
         # Derive only Core's next receiving address for the Address Book. No
         # online address probing and no advancement of the Core keypool.

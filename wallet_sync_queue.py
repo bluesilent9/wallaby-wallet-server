@@ -162,7 +162,9 @@ def warnings(hub):
         from sync_status import reason
         blocked=reason(hub,state,rows)[0]
         text=('Wallet data received, but history recovery is incomplete for ' if recovery else 'Wallet synchronisation needs local review for ')+name+' ('+peers+'). Open the local Agent’s Synchronisation page.'
-        if blocked in ('preview_expired','preview_changed','peer_changed'):
+        if blocked=='peer_changed':
+            text='Wallet synchronisation is waiting for automatic invitation renewal for '+name+' ('+peers+'). Connect both Agents and allow their inventory and receive-permission checks to finish.'
+        if blocked in ('preview_expired','preview_changed'):
             text='Wallet synchronisation needs a fresh review for '+name+' ('+peers+'). Reconcile the old attempts on both Agents, then open Wallet Server Nodes and choose Start fresh sync reviews.'
         result.append({'id':'wallet-sync-'+ident,'kind':'wallet_sync','severity':'yellow','dismissible':False,'target':'nodes','created_utc':rows[0]['created_utc'],'text':text})
     return result

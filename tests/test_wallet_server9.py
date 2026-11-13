@@ -36,7 +36,7 @@ class LoadedRoutes(RouteFixture.Routes):
  def test_unloaded_folders_do_not_reuse_signed_reviews(self):
   for n in (self.f.a,self.f.b):self.unloaded(n['node_id'])
   with self.hub.edit() as state:next(iter(state['requests'].values()))['signed_preview']={'retained':'review'}
-  self.assertFalse(self.fresh())
+  fresh=self.fresh();self.assertEqual(len(fresh),2);self.assertTrue(all('signed_preview' not in r for r in fresh))
  def test_partial_inventory_does_not_make_existing_destination_absent(self):
   self.unloaded(self.f.b['node_id']);self.hub.inventories[self.f.b['node_id']]['wallets']=copy.deepcopy(self.hub.inventories[self.f.a['node_id']]['wallets'])
   self.assertFalse(self.fresh())
