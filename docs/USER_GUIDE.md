@@ -480,3 +480,6 @@ Build 12 keeps public wallet source offers visible when receiving is denied, wit
 
 
 Build 13 adds the Agent Build 93 disc-source display contract. Signed version-3 public previews may contain `source_storage` (`node` or `disc`); the Server verifies and forwards the exact signed envelope unchanged. Public discovery offers can show a current Agent-reported storage hint before a preview exists, including denied wallets. Signed previews take precedence; stale, reconnected or conflicting inventory is not used. This is presentation metadata and does not approve receiving, relax pairing or expose archive paths. Use Agent Build 93 for the new disc icon. No profile reset is required.
+
+
+Build 14 adds an administrator SSH forwarding audit and selected-key repair tool. It addresses an SSH key enrolled for a single media port being reused by an Agent: SSH login succeeds but the Agent forward is denied before reaching Wallet Server. Administrators can explicitly remove port restrictions for one trusted key, with a backup and no changes to other accounts or global sshd policy. Installation does not change SSH permissions. See [SSH access repair](docs/SSH_ACCESS.md).
