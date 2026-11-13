@@ -33,6 +33,9 @@ def validate(payload,now=None,fresh=True):
     p=payload['preview'];fields={'version','transfer_id','challenge','sender_ipv6','receiver_ipv6','public_wallet','chain','funded_outputs','node_tip','generated_at'}
     fields|={'vaults','address_labels'}
     if isinstance(p,dict) and p.get('version')==3:fields.add('transport')
+    if isinstance(p,dict) and 'source_storage' in p:
+        if p.get('version')!=3 or p['source_storage'] not in ('node','disc'):raise ValueError('Invalid signed wallet source storage.')
+        fields.add('source_storage')
     if isinstance(p,dict) and 'restoration' in p:
         fields.add('restoration');validate_restoration(p['restoration'],p['public_wallet'])
     if not isinstance(p,dict) or set(p)!=fields or type(p['version']) is not int or p['version'] not in (2,3) or p['chain']!='main':raise ValueError('Invalid mainnet wallet preview.')

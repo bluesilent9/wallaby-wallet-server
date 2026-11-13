@@ -1,9 +1,21 @@
 """Public availability is independent of pairing and never transfer authority."""
-import copy
+import copy,time
 from agent_hub import digest
 
 CAPABILITY='wallet_sync_offers_v1'
 STATUSES={'ready','secure_pairing_required','peer_offline','permissions_pending','discovery_pending','review_paused','history_recovery','local_outcome','earlier_operation','peer_changed','preview_changed','preview_expired','invalid_pair','disabled'}
+
+def source_storage(hub,source):
+    """Origin is a display hint, never a route or transfer permission."""
+    signed=source.get('signed_preview')
+    if signed:return signed['preview'].get('source_storage')
+    node=source['node_id'];connections=[token for token,c in hub.registry.connections.items() if c['node_id']==node]
+    if len(connections)!=1 or hub.inventory_display.get(node,{}).get('token')!=connections[0] or time.monotonic()-hub.inventory_times.get(node,0)>60:return None
+    from wallet_sync_queue import keys
+    expected=keys(source['public_wallet'])
+    matches=[w for w in hub.inventories.get(node,{}).get('wallets',[]) if not w.get('signing_only') and keys(w['raw'])==expected]
+    origins={w.get('wallaby_storage') for w in matches}
+    return next(iter(origins)) if len(origins)==1 and origins<={'node','disc'} else None
 
 def snapshot(transfers,state,node):
     from sync_status import reason
@@ -38,6 +50,10 @@ def snapshot(transfers,state,node):
         offers.append({'id':digest({'transfer':ident,'direction':row['direction']}),'transfer_id':ident,
                        'direction':row['direction'],'peer':{'node_id':row['peer_id'],'hostname':peer_host},
                        'public_wallet':copy.deepcopy(row['public_wallet']),'status':code})
+        # Signed origin takes precedence; before review, current source inventory
+        # may supply a display-only hint. Nothing is added to a signed envelope.
+        origin=source_storage(hub,source)
+        if origin is not None:offers[-1]['source_storage']=origin
     offers.sort(key=lambda o:(o['public_wallet']['wallet_name'].casefold(),o['peer']['node_id'],o['id']))
     if len(offers)>128:raise ValueError('Too many public wallet offers; finish existing requests first.')
     return offers
@@ -61,7 +77,8 @@ def validate_saved(entry):
     offers=entry.get('sync_offer_snapshot');seen=set()
     if type(entry['sync_offer_revision']) is not int or entry['sync_offer_revision']<0 or not isinstance(offers,list) or len(offers)>128:raise ValueError('Invalid saved public wallet offers.')
     for o in offers:
-        if not isinstance(o,dict) or set(o)!={'id','transfer_id','direction','peer','public_wallet','status'} or not all(isinstance(o[k],str) and re.fullmatch('[0-9a-f]{64}',o[k]) for k in ('id','transfer_id')) or o['id'] in seen or o['direction'] not in ('send','receive') or o['status'] not in STATUSES:raise ValueError('Invalid saved public wallet offer.')
+        if not isinstance(o,dict) or not {'id','transfer_id','direction','peer','public_wallet','status'}<=set(o)<={'id','transfer_id','direction','peer','public_wallet','status','source_storage'} or not all(isinstance(o[k],str) and re.fullmatch('[0-9a-f]{64}',o[k]) for k in ('id','transfer_id')) or o['id'] in seen or o['direction'] not in ('send','receive') or o['status'] not in STATUSES:raise ValueError('Invalid saved public wallet offer.')
+        if 'source_storage' in o and o['source_storage'] not in ('node','disc'):raise ValueError('Invalid saved wallet source storage.')
         peer=o['peer']
         if not isinstance(peer,dict) or set(peer)!={'node_id','hostname'} or any(not isinstance(peer[k],str) or not peer[k] or len(peer[k])>512 for k in peer):raise ValueError('Invalid saved public wallet offer peer.')
         clean_wallet(o['public_wallet']);seen.add(o['id'])

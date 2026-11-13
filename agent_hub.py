@@ -120,6 +120,7 @@ class AgentHub:
                     if not raw.get('descriptors'):continue
                 checked=clean_wallet(raw)
                 item={'name':name,'signing_only':info['walletname']!=name,'id':checked['id'],'raw':checked['raw'],'private_keys_enabled':info.get('private_keys_enabled') is True,'scanning':bool(info.get('scanning'))}
+                if info.get('wallaby_storage') in ('node','disc'):item['wallaby_storage']=info['wallaby_storage']
                 managed=info.get('wallaby_managed')
                 if isinstance(managed,dict):
                     item['managed']={k:managed[k] for k in ('setup_id','policy_hash','kind','role_id') if isinstance(managed.get(k),str)}

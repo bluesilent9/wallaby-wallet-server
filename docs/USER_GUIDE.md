@@ -477,3 +477,6 @@ After upgrading from a build where an Ownership run failed, upload the latest st
 
 
 Build 12 keeps public wallet source offers visible when receiving is denied, without creating executable transfer requests. If an Agent restarts and regenerates its signed preview, an unattempted invitation is renewed with a fresh challenge and fresh local choices. Frozen reviews, active work and recorded outcomes are retained. No profile reset is required.
+
+
+Build 13 adds the Agent Build 93 disc-source display contract. Signed version-3 public previews may contain `source_storage` (`node` or `disc`); the Server verifies and forwards the exact signed envelope unchanged. Public discovery offers can show a current Agent-reported storage hint before a preview exists, including denied wallets. Signed previews take precedence; stale, reconnected or conflicting inventory is not used. This is presentation metadata and does not approve receiving, relax pairing or expose archive paths. Use Agent Build 93 for the new disc icon. No profile reset is required.
