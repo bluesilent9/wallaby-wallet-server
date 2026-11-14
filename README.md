@@ -3,13 +3,17 @@
 <h1 align="center">Wallaby Wallet Server</h1>
 <p align="center">Your Bitcoin. Managed together.</p>
 
-**V1 Build 21 · Development. No Stable release is available yet.**
+**V1 Build 22 · Development. No Stable release is available yet.**
 
-[Explore Wallaby Wallet](https://bluesilent9.github.io/wallaby-suite/wallet/) · [Wallaby Suite](https://bluesilent9.github.io/wallaby-suite/) · [Development installer](https://github.com/bluesilent9/wallaby-wallet-server/raw/refs/heads/Development/dist/wallaby-wallet-server_1.0.0~dev21_all.deb) · [Checksums](dist/SHA256SUMS.txt) · [User guide](docs/USER_GUIDE.md)
+[Explore Wallaby Wallet](https://bluesilent9.github.io/wallaby-suite/wallet/) · [Wallaby Suite](https://bluesilent9.github.io/wallaby-suite/) · [Development installer](https://github.com/bluesilent9/wallaby-wallet-server/raw/refs/heads/Development/dist/wallaby-wallet-server_1.0.0~dev22_all.deb) · [Checksums](dist/SHA256SUMS.txt) · [User guide](docs/USER_GUIDE.md)
 
 Wallaby Wallet Server is the Bitcoin-focused successor to Wallaby Dashboard. It coordinates family wallet management, single-signature and multisignature wallets, height-locked vaults, transaction building, optical archive requests, balances, a node-backed Mempool explorer, salary planning and Australian CGT working papers. The interface is branded **Wallaby Wallet**.
 
 Private wallet material and signing remain on independently controlled Wallaby Agents. The server's statements are proposals; Agents must independently validate and locally authorise sensitive actions. This development software is not a guarantee against loss of funds.
+
+## Version 1 Build 22
+
+Already-received Extinct history now clears its pending preservation task after the Agent reports completion and the Server verifies the actual archive records. Verification runs even when there are no remaining original-wallet deletions. Verified preservation rows disappear while unrelated node tasks remain pending; signed outcomes and profile history are retained. Use Agent Build 103 for its matching existing-archive completion check. No profile reset is required.
 
 ## Version 1 Build 21
 
@@ -57,7 +61,7 @@ This release implements the **server stage only**. The Android application and A
 
 ## Installation and upgrades
 
-Ubuntu/Kubuntu 26.04 LTS: download the Development DEB, verify its checksum, then install with `sudo apt install ./wallaby-wallet-server_1.0.0~dev21_all.deb`.
+Ubuntu/Kubuntu 26.04 LTS: download the Development DEB, verify its checksum, then install with `sudo apt install ./wallaby-wallet-server_1.0.0~dev22_all.deb`.
 
 The new package replaces `wallaby-dashboard`. Its migration stops the previous system service, moves existing application data and cache to `/var/lib/wallaby-wallet-server` and `/var/cache/wallaby-wallet-server`, preserves the data byte-for-byte, and starts `wallaby-wallet-server.service`. Existing legacy data paths remain compatibility links. Conflicting nonempty old/new profiles are never silently merged. Stop manually launched copies before upgrading. No live installation is performed by the build process.
 

@@ -273,7 +273,8 @@ def advance(hub):
             needs_delete=any(latest_delete(rows,o['id']) is None or o['id'] in absent or root.get('dashboard_extinct') and latest_delete(rows,o['id']).get('state')=='denied' for o in options)
             needs_archive=any(not any(not r.get('preservation_withdrawn') and r['node_id']==o['id'] and r['proposal']['phase']=='preserve' and r['proposal']['wallet']==o['wallet'] for r in rows) for o in archive_options(hub))
             from archive_queue import ArchiveQueue
-            if not needs_delete and not needs_archive and not ArchiveQueue(hub).needs_retired_disc(root):continue
+            needs_verification=any(not r.get('preservation_withdrawn') and r['proposal']['phase']=='preserve' and r['state']=='complete' and not r.get('archive_checked') for r in rows)
+            if not needs_delete and not needs_archive and not needs_verification and not ArchiveQueue(hub).needs_retired_disc(root):continue
             preservation=None;verification_error=None
             for row in rows:
                 if row.get('preservation_withdrawn') or row['proposal']['phase']!='preserve' or row['state']!='complete':continue
@@ -286,6 +287,8 @@ def advance(hub):
                 if verification_error:
                     with hub.edit() as state:state['requests'][key]['coordination_error']=verification_error
                 continue
+            if not verification_error:
+                with hub.edit() as state:state['requests'][key].pop('coordination_error',None)
             queue_late_archives(hub,key,root,preservation)
             from archive_queue import ArchiveQueue
             ArchiveQueue(hub).retired_discs(root,preservation)
