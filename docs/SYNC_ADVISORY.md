@@ -1,4 +1,4 @@
-# Advisory wallet snapshots — Server Build 20 / Agent Build 101
+# Advisory wallet snapshots — Server Build 21 / Agent Build 102
 
 Server observations are display hints, not wallet discovery or transfer authority. Agents remain responsible for direct discovery, full wallet contents, source selection, live paired identity checks, denial lists and local receiving approval. A Server hint never creates a transfer job, requires pairing, consults a denial list or constrains direct Agent work. The snapshot includes connected sources regardless of receiver denial or previously completed transfers.
 
@@ -19,3 +19,9 @@ The Server does no additional RPC, public-history fetch, network pricing lookup,
 ## Saved data and other operations
 
 Snapshot/revision metadata is saved with the profile so it validates on restore, but live-source presence is always recomputed. Old frozen requests and actual outcomes remain intact. Build 19's disabled transfer queues and retry endpoints remain disabled. Explicit Builder, signing, broadcast, archive, rename and extinction requests retain their existing separate authorisation/barrier rules.
+
+## Reserved implementation accounts (Build 21)
+
+Filter complete reserved names before advisory grouping and deduplication, checking both the actual Core route and the exported public wallet name. Patterns are `.wallaby-history-[0-9a-f]{24}`, `Wallaby policy [0-9a-f]{20}(?:_watch)?` and `Wallaby key [0-9a-f]{12} [0-9a-f]{8}(?:_watch)?`, matched as whole names. Similar user names remain eligible. Expanded historical children retain the actual Core route, so a staging copy cannot enter the combined Extinct hint under one of its labels. Earlier advisory snapshots are replaced on the next exchange.
+
+History staging is excluded before history-discovery RPC and from unloaded-wallet availability warnings. The actual Core directory observation retains its complete raw name list for presence checks. This is not wallet deletion or recovery cleanup. Policy monitors and private signer accounts remain in the separate Builder/signing inventory; hiding their independent advisory rows does not hide signing keys or change approval requirements. Agent 102 separately excludes these accounts from direct discovery and receiving offers.

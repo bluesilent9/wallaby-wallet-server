@@ -1,5 +1,5 @@
 """Live Server observations only; paired Agents own discovery and every transfer."""
-import copy,json,re,time
+import copy,json,time
 from agent_hub import digest
 from descriptor_store import clean_wallet
 from node_wallets import NodeWalletLoader
@@ -9,7 +9,7 @@ CAPABILITY='wallet_sync_offers_v1'
 # display identities, never request hashes or transfer authorisation.
 MAX_OFFERS=128
 MAX_BYTES=2*1024*1024
-POLICY=re.compile(r'Wallaby policy [0-9a-f]{20}(?:_watch)?',re.IGNORECASE)
+from wallet_visibility import advisory_wallet
 
 
 def current(hub,node):
@@ -26,8 +26,9 @@ def current(hub,node):
 def wallets(inv):
     # Extinct children are display groups for ownership/tracing, not separate
     # wallets to sync. Recombine only this source's public historical records.
-    normal=[w for w in inv.get('wallets',[]) if not w.get('extinct')]
-    historical=[w for w in inv.get('wallets',[]) if w.get('extinct')]
+    eligible=[w for w in inv.get('wallets',[]) if advisory_wallet(w)]
+    normal=[w for w in eligible if not w.get('extinct')]
+    historical=[w for w in eligible if w.get('extinct')]
     if historical:
         from extinct_sync import containers
         try:normal+=containers(historical)
@@ -44,7 +45,7 @@ def snapshot(hub,node):
         c,inv=live
         for w in wallets(inv):
             raw=w.get('raw',{})
-            if w.get('signing_only') or w.get('scanning') or POLICY.fullmatch(raw.get('wallet_name','')):continue
+            if w.get('signing_only') or w.get('scanning') or not advisory_wallet(w):continue
             try:raw=clean_wallet(raw)['raw']
             except (ValueError,TypeError,KeyError):continue
             policy=sorted(NodeWalletLoader.descriptor_key(r['desc']) for r in raw['descriptors'])

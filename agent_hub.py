@@ -10,6 +10,7 @@ from storage import storage_lock,data_directory
 from vault_records import public_vault
 from descriptor_store import clean_wallet,DescriptorStore
 from node_wallets import NodeWalletLoader
+from wallet_visibility import history_staging
 from preferences import FamilyStore,resource_id
 from agent_rpc import PRIVATE
 
@@ -105,8 +106,9 @@ class AgentHub:
             if not isinstance(names,list) or not all(isinstance(n,str) for n in names) or len(names)>256:raise ValueError('Invalid node wallet list.')
             entries=directory.get('wallets') if isinstance(directory,dict) else None
             if not isinstance(entries,list) or len(entries)>4096 or any(not isinstance(w,dict) or not isinstance(w.get('name'),str) or len(w['name'])>256 for w in entries):raise ValueError('Invalid node wallet directory.')
-            unloaded=sorted({w['name'] for w in entries if w['name'] not in names})
+            unloaded=sorted({w['name'] for w in entries if w['name'] not in names and not history_staging(w['name'])})
             for name in names:
+                if history_staging(name):continue
                 info=self.rpc(node,'getwalletinfo',wallet=name);raw=self.rpc(node,'listdescriptors',[False],name)
                 if not isinstance(info.get('walletname'),str) or raw.get('wallet_name')!=info['walletname']:raise ValueError('Node wallet identity changed during discovery.')
                 historical=bool(info.get('wallaby_extinct') is True or raw.get('descriptors') and all(r.get('desc','').startswith('addr(') for r in raw['descriptors']))

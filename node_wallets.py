@@ -9,6 +9,7 @@ from descriptor_policy import needs_history,parse_policy
 from vendor.embit.descriptor.miniscript import Wrapper
 from vendor.embit.base import EmbitError
 from labelled_wallets import expand
+from wallet_visibility import history_staging
 
 REQUIRED={'listwallets','listwalletdir','getwalletinfo','listdescriptors','listsinceblock','getaddressinfo'}
 
@@ -41,14 +42,15 @@ class NodeWalletLoader:
         directory=self.rpc(node,'listwalletdir')
         if not isinstance(names,list) or any(not isinstance(n,str) for n in names):raise ValueError('Invalid listwallets response from '+node['hostname'])
         if not isinstance(directory,dict) or not isinstance(directory.get('wallets'),list):raise ValueError('Invalid listwalletdir response from '+node['hostname'])
-        unavailable=[w.get('name') for w in directory['wallets'] if w.get('name') not in names]
+        unavailable=[w.get('name') for w in directory['wallets'] if w.get('name') not in names and not history_staging(w.get('name'))]
         if unavailable:
             if not self.tolerate_errors:raise ValueError(node['hostname']+': load these wallets in Bitcoin Core and retry: '+', '.join(str(n) for n in unavailable))
             self.progress(node['hostname']+': '+str(len(unavailable))+' unloaded wallet folders; checking loaded wallets only. Existing saved accounts are retained.')
         self.progress(node['hostname']+': '+str(len(names))+' loaded wallets discovered.')
-        return [(node,name) for name in sorted(set(names))]
+        return [(node,name) for name in sorted(set(names)) if not history_staging(name)]
     def export(self,replica):
         node,name=replica
+        if history_staging(name):return []
         info=self.rpc(node,'getwalletinfo',wallet=name)
         if not isinstance(info,dict) or not isinstance(info.get('walletname'),str):raise ValueError('Wallet identity response did not match '+node['hostname']+' / '+name)
         if info.get('scanning'):raise ValueError(node['hostname']+' / '+name+': wait for the Core wallet rescan to finish.')
