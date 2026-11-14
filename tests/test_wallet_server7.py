@@ -30,9 +30,10 @@ class HistoryOffers(unittest.TestCase):
   self.hub.inventories[self.f.b['node_id']]['extinct_summaries']['Wallaby Extinct']=copy.deepcopy(self.sa);self.exchange(self.f.b);self.assertFalse(self.rows())
  def test_label_disagreement_is_detected_without_fetching_labels_as_history(self):
   self.hub.inventories[self.f.b['node_id']]['extinct_summaries']['Wallaby Extinct']=self.summary(label_hash='c'*64);self.exchange(self.f.b);self.assertEqual(len(self.rows()),2)
- def test_incomplete_sources_and_stale_or_reconnected_inventories_wait(self):
-  self.hub.inventories[self.f.a['node_id']]['extinct_summaries']['Wallaby Extinct']=self.summary(complete=False);self.hub.inventories[self.f.b['node_id']]['extinct_summaries']['Wallaby Extinct']=self.summary(3,complete=False);self.exchange(self.f.b);self.assertFalse(self.rows())
-  self.hub.inventories[self.f.a['node_id']]['extinct_summaries']['Wallaby Extinct']=self.sa;self.hub.inventory_display[self.f.a['node_id']]['token']='old';self.exchange(self.f.b);self.assertFalse(self.rows())
+ def test_stored_native_records_can_be_offered_without_local_scan_receipts(self):
+  self.hub.inventories[self.f.a['node_id']]['extinct_summaries']['Wallaby Extinct']=self.summary(complete=False);self.hub.inventories[self.f.b['node_id']]['extinct_summaries']['Wallaby Extinct']=self.summary(3,complete=False);self.exchange(self.f.b);self.assertEqual(len(self.rows()),2);self.assertTrue(all(r.get('history_sync') for r in self.rows()))
+ def test_stale_or_reconnected_inventories_wait(self):
+  self.hub.inventory_display[self.f.a['node_id']]['token']='old';self.exchange(self.f.b);self.assertFalse(self.rows())
   self.hub.inventory_display[self.f.a['node_id']]['token']=self.f.a['connection_token'];self.hub.inventory_times[self.f.a['node_id']]=0;self.exchange(self.f.b);self.assertFalse(self.rows())
  def test_local_denial_preserves_public_discovery_without_execution(self):
   from extinct_sync import containers

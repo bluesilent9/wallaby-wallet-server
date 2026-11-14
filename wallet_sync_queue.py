@@ -49,7 +49,15 @@ def schedule(transfers,state):
             for row in rows:row['queue_visible']=False
             continue
         source=next(r for r in rows if r['direction']=='send');receiver=next(r for r in rows if r['direction']=='receive')
+        # Never keep delivering a known subset as a whole Extinct sync while
+        # fresh full-scope review is waiting for readiness/permission.
+        if not source.get('lifecycle_restore') and __import__('extinct_history_sync').expanded_scope(hub,source['node_id'],source['public_wallet']):
+            for row in rows:row['queue_visible']=False
+            continue
         nodes={r['node_id'] for r in rows}
+        if source['public_wallet']['descriptors'] and all(d['desc'].startswith('addr(') for d in source['public_wallet']['descriptors']) and __import__('extinct_history_sync').mutation_pending(hub,state,nodes):
+            for row in rows:row['queue_visible']=False
+            continue
         from wallet_retirement import suppress_sync
         from wallet_renames import RenameQueue
         from agent_hub import equivalent

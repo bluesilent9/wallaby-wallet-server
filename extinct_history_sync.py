@@ -26,6 +26,29 @@ def group(hub,node):
     if len(wallets)!=1 or len(wallets[0]['raw']['descriptors'])!=summary['addresses']:return None
     return wallets[0],summary
 
+def expanded_scope(hub,node,raw):
+    """Current complete public container, never a modification of a frozen request."""
+    from wallet_sync_queue import keys
+    if not raw.get('descriptors') or any(not d['desc'].startswith('addr(') for d in raw['descriptors']):return None
+    c=[c for c in hub.registry.connections.values() if c['node_id']==node and hub.registry.rpc._unique(c)]
+    inv=hub.inventories.get(node,{})
+    if len(c)!=1 or hub.inventory_display.get(node,{}).get('token')!=c[0].get('token') or not (inv.get('complete') or inv.get('loaded_complete')) or time.monotonic()-inv.get('history_checked_at',hub.inventory_times.get(node,0))>90 or any(w.get('scanning') for w in inv.get('wallets',[])):return None
+    groups=[w for w in containers(inv.get('wallets',[])) if w.get('extinct')]
+    return groups[0] if len(groups)==1 and keys(raw)<keys(groups[0]['raw']) else None
+
+def mutation_pending(hub,state,nodes):
+    """A waiting public preservation may need this very history comparison."""
+    if any(hub.transfers.is_busy(n) for n in nodes):return True
+    for r in state['requests'].values():
+        if r.get('node_id') not in nodes or r.get('node_deleted'):continue
+        if r.get('state')=='recovery_required' or r.get('active_pair'):return True
+        if r.get('state')!='pending':continue
+        if r.get('lifecycle_restore'):return True
+        if r.get('kind')=='wallet_retire':
+            p=r.get('proposal',{})
+            if r.get('cancel_requested') or r.get('restoration') or p.get('version')!=3 or p.get('phase')!='preserve' or p.get('delete_wallet') is not False:return True
+    return False
+
 def schedule(hub,state,ready):
     available={}
     for node,c in ready.items():
@@ -37,12 +60,13 @@ def schedule(hub,state,ready):
         wa,sa=available[a];wb,sb=available[b]
         if sa['digest']==sb['digest']:continue
         # Counts choose a useful first direction, never establish authority.
-        candidates=sorted(((a,wa,sa),(b,wb,sb)),key=lambda x:(x[2]['history_complete'],x[2]['transactions'],x[2]['addresses'],x[0]),reverse=True)
+        candidates=sorted(((a,wa,sa),(b,wb,sb)),key=lambda x:(x[2]['addresses'],x[2]['transactions'],x[2]['history_complete'],x[0]),reverse=True)
         source,wallet,summary=candidates[0]
-        if not summary['history_complete']:continue
+        # Missing local scan coverage is not missing native records. Current
+        # Agents validate a locally approved trusted-source snapshot themselves.
         target=b if source==a else a;other=available[target][1]
         # Do not compete with a currently executing/importing archive operation.
-        if any(r.get('kind')=='wallet_retire' and r.get('state') in ('pending','recovery_required') and r.get('node_id') in (a,b) and not r.get('node_deleted') for r in state['requests'].values()):continue
+        if mutation_pending(hub,state,{a,b}):continue
         pairs=hub.transfers.pairs(state)
         if any(len(rows)==2 and {r['node_id'] for r in rows}=={a,b} and all(r['public_wallet']['descriptors'] and all(d['desc'].startswith('addr(') for d in r['public_wallet']['descriptors']) for r in rows) and any(r['state'] in ('pending','recovery_required') for r in rows) and not any(r.get('superseded_attempt') or r.get('superseded_container') for r in rows) for rows in pairs.values()):continue
         if not hub.permissions.allows_offer(target,wallet['raw']) and 'wallet_sync_offers_v1' not in hub.caps.get(target,set()):continue

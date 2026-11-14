@@ -227,7 +227,7 @@ class AgentHub:
                     if any(r.get('kind')=='wallet_transfer' and r.get('direction')=='receive' and r['node_id']==target and not r.get('superseded_container') and ((policy_keys<={NodeWalletLoader.descriptor_key(d['desc']) for d in r['public_wallet']['descriptors']}) if wallet.get('extinct') else equivalent(r['public_wallet'],wallet['raw'])) for r in state['requests'].values()):continue
                     ident=digest({'target':target,'descriptor_id':wallet['id']})
                     earliest=min((r.get('timestamp',0) for r in wallet['raw']['descriptors']),default=0)
-                    health=self.registry.health.status(ready[target]);requires=bool(health.get('pruned') and (not earliest or not health.get('prune_time') or earliest<health['prune_time']))
+                    health=self.registry.health.status(ready[target]);requires=bool(not wallet.get('extinct') and health.get('pruned') and (not earliest or not health.get('prune_time') or earliest<health['prune_time']))
                     for node,peer,direction in ((source,target,'send'),(target,source,'receive')):
                         key=digest({'transfer':ident,'direction':direction})
                         if key in state['requests']:continue
