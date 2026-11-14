@@ -1,1 +1,1 @@
-6743f6b7b70af96235b3ad3e3b21ec65017ef00e9e94f431b8a0c21ae1b91149  wallaby-wallet-server_1.0.0~dev16_all.deb
+fca11a9e65be4cfbddfd97199a83f9ccc626b08068dfb6bf9ad2d0f5aede4b26  wallaby-wallet-server_1.0.0~dev17_all.deb

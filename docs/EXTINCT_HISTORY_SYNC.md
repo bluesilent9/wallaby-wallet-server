@@ -1,8 +1,8 @@
-# Extinct history discovery — Server Build 16 / Agent Build 97
+# Extinct history discovery — Server Build 17 / Agent Build 97+
 
 The Server is a signalling coordinator. It neither fetches nor forwards history records, raw transactions, proofs or labels for this update. Agents transfer and verify those over their authenticated direct SSH channel using the existing signed wallet transfer review.
 
-An Agent advertises the read-only wallet RPC `wallaby_extinct_summary`. It accepts no parameters (`[]` or `{}`) and only exact wallet endpoints `Wallaby Extinct` or `Extinct`. Its returned object has exactly: `version` (1), `chain` (`main`), `addresses` and `transactions` (integer counts), `address_hash`, `transaction_hash`, `label_hash`, `history_complete` (boolean), and `digest`. All hashes are lowercase SHA256 hex. `digest` hashes the canonical object excluding itself. No node tip appears in the comparison digest, so new blocks alone do not create new offers.
+An Agent advertises the read-only wallet RPC `wallaby_extinct_summary`. It accepts no parameters (`[]` or `{}`) and only exact wallet endpoints `Wallaby Extinct`, `Extinct` or `extinct_watch`. Its returned object has exactly: `version` (1), `chain` (`main`), `addresses` and `transactions` (integer counts), `address_hash`, `transaction_hash`, `label_hash`, `history_complete` (boolean), and `digest`. All hashes are lowercase SHA256 hex. `digest` hashes the canonical object excluding itself. No node tip appears in the comparison digest, so new blocks alone do not create new offers.
 
 Normal low-priority wallet inventory collects this optional small summary once per inventory refresh. Failure of the summary alone does not erase normal wallet inventory. Discovery requires current, unambiguous connected Agents, fresh inventories tied to their current connections and exactly one identifiable Extinct archive per Agent. An unknown or incomplete summary cannot authorise a transfer or establish that a source archive is complete.
 
@@ -19,3 +19,9 @@ A pending subset invitation is replaced by a separately reviewed full-container 
 A completed subset transfer does not prove that the full archive is current. Fresh summaries can therefore offer the missing native history. A late verified completion of a strict public subset does not suppress the separately reviewed larger update; late failure, denial or uncertain recovery continues to block automatic replacement. The receiver merges rather than deleting its existing Extinct wallet.
 
 Pruning alone does not mark this native public-history comparison as requiring a blockchain redownload. Agents decide whether their actual approved records and coverage satisfy the operation; the Server never fabricates a scan receipt. Intentional signer accounts and ordinary active-wallet download checks are unchanged.
+
+## Rediscovery after local deletion
+
+A completed transfer records what succeeded at that time. It is not evidence that a destination still holds the wallet forever. If a fresh, complete destination inventory tied to its current connection, collected after that completion, proves the wallet absent, a current loaded source can generate a separate receive offer. The previous outcome and frozen proposal are retained. The new invitation has a new transfer identity and challenge, reuses no signed preview or approval, and still respects local deny lists and authenticated peer pairing. Ordinary wallet imports use this same rediscovery rule.
+
+An unavailable summary does not mean an archive is empty. Failed or stale inventories, unknown unloaded folders, scanning or a previous connection cannot prove deletion. Declined, failed or recovery-required attempts still require reconciliation; they are not silently retried. Deletion of one local replica does not delete its Server-side preservation task or make that task approved. Current Agent Build 98 gives archive-receiving guidance for that task before suggesting local historical recovery.

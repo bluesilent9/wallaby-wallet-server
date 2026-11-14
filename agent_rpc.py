@@ -65,7 +65,7 @@ def request(method,params,wallet):
     if method=='wallaby_mempool_snapshot':
         from mempool_pages import parameters
         parameters(params)
-    if method=='wallaby_extinct_summary' and (params not in ([],{}) or wallet not in ('Wallaby Extinct','Extinct')):raise ValueError('Extinct summaries require an exact local archive and no parameters.')
+    if method=='wallaby_extinct_summary' and (params not in ([],{}) or wallet not in ('Wallaby Extinct','Extinct','extinct_watch')):raise ValueError('Extinct summaries require an exact local archive and no parameters.')
     if method=='listdescriptors' and params not in ([],[False],{}, {'private':False}):raise ValueError('Only public listdescriptors false exports are permitted.')
     return params,size
 

@@ -3,7 +3,7 @@
 The current Agent exchange carries public records and unsigned vault proposals.
 Signing, peer transfers and automatic broadcast use explicit current capabilities.
 """
-import base64,copy,hashlib,ipaddress,json,os,re,threading,time,uuid
+import base64,copy,hashlib,ipaddress,json,os,re,secrets,threading,time,uuid
 from pathlib import Path
 from contextlib import contextmanager
 from storage import storage_lock,data_directory
@@ -114,7 +114,7 @@ class AgentHub:
                     if info.get('private_keys_enabled') is not False:raise ValueError('Historical archive must have private keys disabled.')
                     archive_wallets.append(name)
                     connection=self.registry.connections.get(token,{})
-                    if name in ('Wallaby Extinct','Extinct') and not self.foreground_active(node) and __import__('extinct_history_sync').supported(connection):
+                    if name in ('Wallaby Extinct','Extinct','extinct_watch') and not self.foreground_active(node) and __import__('extinct_history_sync').supported(connection):
                         try:extinct_summaries[name]=__import__('extinct_history_sync').validate(self.rpc(node,'wallaby_extinct_summary',[],name))
                         except ValueError as exc:self.registry.diagnostic_log.append('Wallet sync','Extinct summary unavailable · node='+node[:12]+' · '+str(exc)[:180])
                     if not raw.get('descriptors'):continue
@@ -224,8 +224,11 @@ class AgentHub:
                     if not wallet.get('extinct') and any(related(self,wallet['raw'],w['raw']) for w in dest['wallets'] if not w.get('signing_only')):continue
                     if self.transfers.contains([w for w in dest['wallets'] if not w.get('signing_only')],wallet['raw']):continue
                     # One canonical source per missing public wallet, independent of names/private-key flags.
-                    if any(r.get('kind')=='wallet_transfer' and r.get('direction')=='receive' and r['node_id']==target and not r.get('superseded_container') and ((policy_keys<={NodeWalletLoader.descriptor_key(d['desc']) for d in r['public_wallet']['descriptors']}) if wallet.get('extinct') else equivalent(r['public_wallet'],wallet['raw'])) for r in state['requests'].values()):continue
+                    previous=[r for r in state['requests'].values() if r.get('kind')=='wallet_transfer' and r.get('direction')=='receive' and r['node_id']==target and not r.get('node_deleted') and not r.get('superseded_attempt') and ((policy_keys<={NodeWalletLoader.descriptor_key(d['desc']) for d in r['public_wallet']['descriptors']}) if wallet.get('extinct') else equivalent(r['public_wallet'],wallet['raw']))]
+                    from sync_discovery import missing_again
+                    if any(not missing_again(self,state,ready,source,target,r) for r in previous):continue
                     ident=digest({'target':target,'descriptor_id':wallet['id']})
+                    if any(r.get('transfer_id')==ident for r in state['requests'].values()):ident=secrets.token_hex(32)
                     earliest=min((r.get('timestamp',0) for r in wallet['raw']['descriptors']),default=0)
                     health=self.registry.health.status(ready[target]);requires=bool(not wallet.get('extinct') and health.get('pruned') and (not earliest or not health.get('prune_time') or earliest<health['prune_time']))
                     for node,peer,direction in ((source,target,'send'),(target,source,'receive')):

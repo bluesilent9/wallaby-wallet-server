@@ -2,7 +2,7 @@
 
 Development V1 Build 16, Ubuntu/Kubuntu 26.04 LTS. No Stable release is published.
 
-Download `wallaby-wallet-server_1.0.0~dev16_all.deb` and `SHA256SUMS.txt` from this repository's Development/dist directory. Run `sha256sum -c SHA256SUMS.txt`, then `sudo apt install ./wallaby-wallet-server_1.0.0~dev16_all.deb` in that directory.
+Download `wallaby-wallet-server_1.0.0~dev17_all.deb` and `SHA256SUMS.txt` from this repository's Development/dist directory. Run `sha256sum -c SHA256SUMS.txt`, then `sudo apt install ./wallaby-wallet-server_1.0.0~dev17_all.deb` in that directory.
 
 The system service is `wallaby-wallet-server.service`. It starts at installation and boot, running as the unprivileged `wallaby-wallet-server` system user. Application code is in `/usr/lib/wallaby-wallet-server`; saved records are in `/var/lib/wallaby-wallet-server`; disposable runtime state is in `/var/cache/wallaby-wallet-server`. Removal/purge preserves records. Browser and Agent access continue through your existing SSH setup; their loopback ports remain 38951 and 56443.
 
