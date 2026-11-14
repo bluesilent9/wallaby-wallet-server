@@ -58,6 +58,14 @@ def schedule(transfers,state):
         if source['public_wallet']['descriptors'] and all(d['desc'].startswith('addr(') for d in source['public_wallet']['descriptors']) and __import__('extinct_history_sync').mutation_pending(hub,state,nodes):
             for row in rows:row['queue_visible']=False
             continue
+        # Partial discovery can offer a public Extinct comparison because the
+        # current Agent inspects unloaded wallets locally before any import.
+        dest=hub.inventories.get(receiver['node_id'],{})
+        if not dest.get('complete') and source['public_wallet']['descriptors'] and all(d['desc'].startswith('addr(') for d in source['public_wallet']['descriptors']):
+            from sync_discovery import local_archive_review
+            if not local_archive_review(hub,receiver['node_id'],ready.get(receiver['node_id'],{}),source['public_wallet']):
+                for row in rows:row['queue_visible']=False
+                continue
         from wallet_retirement import suppress_sync
         from wallet_renames import RenameQueue
         from agent_hub import equivalent

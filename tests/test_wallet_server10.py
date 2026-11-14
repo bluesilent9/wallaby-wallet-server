@@ -36,6 +36,8 @@ class ReviewedRoutes(route_fixtures.LoadedRoutes):
    self.assertTrue(all(not r['queue_visible'] for r in self.hub.read()['requests'].values() if r.get('retry_of')))
  def test_already_watched_extinct_addresses_allow_legacy_review_replacement(self):
   f=history_fixtures.HistoryOffers();f.setUp();self.addCleanup(f.doCleanups);f.exchange(f.f.b)
+  # The current receiver can inspect unloaded wallets inside local approval.
+  for c in f.hub.registry.connections.values():c['agent_version']='2.0.0~dev98'
   from wallet_sync_queue import schedule
   with f.hub.edit() as state:
    for r in state['requests'].values():

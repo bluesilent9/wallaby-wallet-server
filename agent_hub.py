@@ -132,12 +132,12 @@ class AgentHub:
             with self.lock:
                 if token not in self.registry.connections:return
                 self.inventories[node]={'wallets':wallets,'archive_wallets':archive_wallets,'extinct_summaries':extinct_summaries,'history_checked_at':time.monotonic(),'complete':not unloaded,'loaded_complete':True,'unloaded_wallets':unloaded,'scanned_utc':self.utc(),
-                    **({'error':'Loaded wallets are available. '+str(len(unloaded))+' unloaded wallet folders prevent missing-wallet sync checks.'} if unloaded else {})}
+                    **({'error':'Loaded wallets are available. '+str(len(unloaded))+' unloaded wallet folders prevent proving ordinary-wallet absence; Extinct ownership can be checked locally during receiving.'} if unloaded else {})}
             self.inventory_display[node]={'token':token,'inventory':copy.deepcopy(self.inventories[node])}
             signature=(tuple(names),tuple(unloaded))
             logged=getattr(self,'inventory_diagnostics',{})
             if logged.get(node)!=signature:
-                self.registry.diagnostic_log.append('Wallet inventory','Loaded wallets collected · node='+node[:12]+' · loaded='+str(len(names))+' · unloaded='+str(len(unloaded))+(' · missing-wallet sync deferred' if unloaded else ''))
+                self.registry.diagnostic_log.append('Wallet inventory','Loaded wallets collected · node='+node[:12]+' · loaded='+str(len(names))+' · unloaded='+str(len(unloaded))+(' · ordinary missing-wallet checks deferred; Extinct ownership stays local' if unloaded else ''))
                 logged[node]=signature;self.inventory_diagnostics=logged
             self.wallet_builder.confirm_installed(node,token,[w for w in wallets if not w.get('signing_only')])
             with self.edit() as saved:
@@ -195,7 +195,7 @@ class AgentHub:
         monitors += [w for n in state['nodes'].values() for w in n.get('known_wallets',{}).values()]
         for target in sorted(ready):
             dest=self.inventories.get(target,{})
-            if not dest.get('complete'):continue
+            if not (dest.get('complete') or dest.get('loaded_complete')):continue
             for source in sorted(ready,key=lambda node:(-sum(len(w['raw']['descriptors']) for w in self.inventories.get(node,{}).get('wallets',[]) if w.get('extinct')),node)):
                 if source==target:continue
                 origin=self.inventories.get(source,{})
@@ -205,6 +205,8 @@ class AgentHub:
                 if not origin.get('complete') and not loaded_current:continue
                 from extinct_sync import containers,supersede_children
                 for wallet in containers(origin['wallets']):
+                    from sync_discovery import local_archive_review
+                    if not dest.get('complete') and not (wallet.get('extinct') and local_archive_review(self,target,ready[target],wallet['raw'])):continue
                     if wallet.get('extinct'):supersede_children(state,target,wallet)
                     if wallet.get('signing_only'):continue
                     # An unknown receive preference may delay execution, but

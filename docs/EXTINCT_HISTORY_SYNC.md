@@ -1,4 +1,4 @@
-# Extinct history discovery — Server Build 17 / Agent Build 97+
+# Extinct history discovery — Server Build 18 / Agent Build 97+
 
 The Server is a signalling coordinator. It neither fetches nor forwards history records, raw transactions, proofs or labels for this update. Agents transfer and verify those over their authenticated direct SSH channel using the existing signed wallet transfer review.
 
@@ -20,8 +20,12 @@ A completed subset transfer does not prove that the full archive is current. Fre
 
 Pruning alone does not mark this native public-history comparison as requiring a blockchain redownload. Agents decide whether their actual approved records and coverage satisfy the operation; the Server never fabricates a scan receipt. Intentional signer accounts and ordinary active-wallet download checks are unchanged.
 
-## Rediscovery after local deletion
+## Rediscovery after local deletion and unloaded folders
 
-A completed transfer records what succeeded at that time. It is not evidence that a destination still holds the wallet forever. If a fresh, complete destination inventory tied to its current connection, collected after that completion, proves the wallet absent, a current loaded source can generate a separate receive offer. The previous outcome and frozen proposal are retained. The new invitation has a new transfer identity and challenge, reuses no signed preview or approval, and still respects local deny lists and authenticated peer pairing. Ordinary wallet imports use this same rediscovery rule.
+A completed transfer records what succeeded at that time. It is not evidence that a destination still holds the wallet forever. For ordinary wallets, only a fresh complete destination inventory can establish absence. For public fixed-address Extinct archives, fresh loaded inventory may instead offer a locally checked comparison on Agent 97 or later while unrelated folders are unloaded. This is not an assertion that an unloaded wallet is missing or unrelated. The Server preserves `complete=false`, requires the current connection and fresh post-completion discovery, and sends a new ordinary signed review with its own identity/challenge. No earlier preview or approval is reused.
 
-An unavailable summary does not mean an archive is empty. Failed or stale inventories, unknown unloaded folders, scanning or a previous connection cannot prove deletion. Declined, failed or recovery-required attempts still require reconciliation; they are not silently retried. Deletion of one local replica does not delete its Server-side preservation task or make that task approved. Current Agent Build 98 gives archive-receiving guidance for that task before suggesting local historical recovery.
+The existing Agent receiving path independently loads local wallets inside the approved operation without changing startup preferences, checks ownership, refuses an active owner even if it was unloaded, merges an existing archive and restores prior loaded states. A loading/inspection failure must stop import. The Server cannot send `loadwallet` or fetch private material through its RPC interface. Source-side unrelated unloaded folders likewise do not hide a loaded current archive.
+
+Public discovery remains visible before local permission or pairing allows executable reviews. Server-side status explains that unloaded ownership still needs local inspection; a prepared review is not authorisation to import. Failed, stale, scanning or reconnected inventories cannot use this path. An older Agent without the local loading safeguards cannot use the partial-inventory exception. Denial, errors, recovery, restoration and active mutations keep their existing barriers.
+
+A completed same-scope import with a possible Extinct archive still listed among unloaded folders does not cause endless repeat reviews merely because it returned to its prior unloaded state. An initial comparison or a broader current archive can still require local review and merge. A new local deletion removing that container can produce a fresh offer. Deleting a local copy does not delete or approve its saved preservation task. Current Agent 98 explains receiving archive history before suggesting local historical recovery.

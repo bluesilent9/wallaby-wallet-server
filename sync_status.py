@@ -20,6 +20,8 @@ def reason(hub,state,rows):
             if not hub.relay.mesh([row['node_id'],row['peer_id']])['ready']:return 'secure_pairing_required','QR-pair both Agents and reconnect their end-to-end encrypted channel.'
             continue
         if p and (p['node_ipv6']!=state['nodes'].get(row['node_id'],{}).get('ipv6') or p['peer']['ipv6']!=state['nodes'].get(row['peer_id'],{}).get('ipv6')):return 'peer_changed','The old IPv6 invitation is waiting for automatic replacement using the paired Agent identities. Fresh loaded-wallet checks and local receive permission are required.'
+    from sync_discovery import local_archive_review
+    if local_archive_review(hub,target['node_id'],live[target['node_id']],source['public_wallet']):return 'discovery_pending','Unloaded wallets remain unchecked by Server discovery. The receiving Agent must inspect their ownership locally before importing or merging this Extinct archive.'
     if not all(r.get('proposal') for r in rows):return 'discovery_pending','Waiting for both node inventories, blockchain checks and peer addresses before preparing local reviews.'
     if not all(r.get('queue_visible') for r in rows):return 'review_paused','The review is paused by node readiness, policy, rename or retirement checks.'
     return None,None
