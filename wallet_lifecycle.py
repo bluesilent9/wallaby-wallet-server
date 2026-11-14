@@ -151,50 +151,12 @@ def advance_restore(hub,*,only=None,verify=False):
                 if wanted and wanted<=historical:stale.setdefault(node,{'hostname':names.get(node,node),'detected_utc':hub.utc()})
             for ident,p in plans.items():
                 previous=old.get(ident,{})
-                if previous.get('transfer_id'):
-                    pair=[v for v in saved['requests'].values() if v.get('transfer_id')==previous['transfer_id']]
-                    receiver=next((v for v in pair if v['direction']=='receive'),{})
-                    # A completed attempt is immutable. A later positively seen
-                    # extinct copy is a new mismatch, requiring a fresh review.
-                    repeated=receiver.get('state')=='complete' and p['node_id'] in stale and hub.inventories.get(p['node_id'],{}).get('scanned_utc','')>receiver.get('finished_utc',hub.utc())
-                    if repeated:
-                        p['previous_transfer_id']=previous['transfer_id'];previous={}
-                    if not repeated and any(v['state']=='denied' for v in pair) and all(v['state'] in ('pending','denied') for v in pair):
-                        sender=next(v for v in pair if v['direction']=='send')
-                        available=any(n==sender['node_id'] and equivalent(w['raw'],sender['public_wallet']) and (not p['private'] or w.get('private_keys_enabled')) for n,w in accounts)
-                        if available and supported(hub,p['node_id']):
-                            transfer=secrets.token_hex(32)
-                            for oldrow in pair:
-                                oldrow.update(superseded_attempt=True,queue_visible=False)
-                                child={k:copy.deepcopy(oldrow[k]) for k in ('kind','node_id','peer_id','direction','descriptor_id','public_wallet','source_has_private_keys','earliest_timestamp','requires_blockchain_redownload','lifecycle_restore')}
-                                child.update(transfer_id=transfer,state='pending',created_utc=hub.utc(),retry_of=oldrow['transfer_id'],message='Locally denied. Waiting for the Agent user to remove its restoration deny entry.')
-                                saved['requests'][digest({'transfer':transfer,'direction':child['direction']})]=child
-                            p.update(previous,transfer_id=transfer,state='pending',message='Locally denied. Waiting for the Agent user to remove its restoration deny entry.');continue
-                    if not repeated:
-                        outcome=next((v for v in pair if v['state'] in ('error','recovery_required')),receiver)
-                        p.update(previous,state='complete' if receiver.get('state')=='complete' else outcome.get('state','pending'),message=outcome.get('message') or previous.get('message','Waiting for local Agent review.'));plans[ident]=p;continue
                 same=[w for n,w in accounts if n==p['node_id'] and equivalent(w['raw'],p['public_wallet']) and (not p['private'] or w.get('private_keys_enabled') and w['raw']['wallet_name']==p['public_wallet']['wallet_name'])]
                 if same:
                     p.update(state='retained',message='Original active copy is still loaded.');continue
                 if p['private'] is None:
                     p.update(state='waiting',message='Original key-storage assignment is unknown. No private keys will be copied to an unverified role.');continue
-                private_nodes={n for n,w in accounts if w.get('private_keys_enabled')}
-                sources=[(n,w) for n,w in accounts if n in private_nodes and n!=p['node_id'] and equivalent(w['raw'],p['public_wallet']) and (not p['private'] or w.get('private_keys_enabled'))]
-                sources.sort(key=lambda pair:pair[1]['raw']['wallet_name']!=p['public_wallet']['wallet_name'])
-                source=next(iter(sources),None)
-                if not source:
-                    p.update(state='waiting',message='Waiting for an Agent with the original active '+('private-key' if p['private'] else 'public')+' wallet.');continue
-                if not supported(hub,p['node_id']):
-                    p.update(state='waiting',message='Connect this Agent with Build 65 or later for direct SSH restoration.');continue
-                if any(v.get('root_hash')==key and v.get('proposal',{}).get('phase')=='delete' and v['node_id'] in (source[0],p['node_id']) and v['state']=='pending' for v in saved['requests'].values()):
-                    p.update(state='waiting',message='Waiting for the Agents to acknowledge withdrawal of the old deletion request.');continue
-                if p['public_wallet']['wallet_name'] in hub.inventories.get(p['node_id'],{}).get('unloaded_wallets',[]):
-                    p.update(state='waiting',message='The original wallet folder is unloaded. Load and verify it locally before requesting an SSH replacement.');continue
-                origin,w=source;transfer=secrets.token_hex(32);earliest=min((d.get('timestamp',0) for d in w['raw']['descriptors']),default=0)
-                for node,peer,direction in ((origin,p['node_id'],'send'),(p['node_id'],origin,'receive')):
-                    row={'kind':'wallet_transfer','node_id':node,'peer_id':peer,'direction':direction,'transfer_id':transfer,'state':'pending','descriptor_id':digest(sorted(NodeWalletLoader.descriptor_key(d['desc']) for d in w['raw']['descriptors'])),'public_wallet':copy.deepcopy(w['raw']),'source_has_private_keys':bool(p['private']),'earliest_timestamp':earliest,'requires_blockchain_redownload':False,'created_utc':hub.utc(),'lifecycle_restore':key}
-                    saved['requests'][digest({'transfer':transfer,'direction':direction})]=row
-                p.update(transfer_id=transfer,state='pending',source_node=origin,message='Waiting for locally approved direct SSH synchronisation.')
+                p.update(state='waiting',message='Connect the trusted Agents, then select and approve restoration receiving locally. Wallet Server does not select a source or scope wallet transfers.')
             restoration['accounts']=list(plans.values());restoration['state']='complete' if restoration.get('active_seen_utc') and plans and all(p['state'] in ('retained','complete') for p in plans.values()) else 'pending'
 
 

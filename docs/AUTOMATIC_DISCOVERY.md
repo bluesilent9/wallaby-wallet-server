@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Automatic public wallet discovery
 
 The server checks all connected, conflict-free, synchronised Core nodes. Discovery queues public read-only RPC work at priority 100 and checks for foreground work before each request. Interactive fee/Mempool reads use priority 10; foreground reports/builders retain their existing priorities. An in-flight RPC must finish or time out before it can yield.

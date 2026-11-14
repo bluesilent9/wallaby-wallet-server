@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Unpaired wallet discovery and first-time Agent identities
 
 Public wallet offers are informational. A newly connected Agent can see source names and public wallet policies, then deny or re-enable incoming wallets before QR pairing with another Agent. Discovery is not authority to send, import or overwrite a wallet. The existing permission, direct-pairing and local approval checks still apply.

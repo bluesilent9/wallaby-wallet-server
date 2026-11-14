@@ -24,14 +24,3 @@ def containers(wallets):
     checked=clean_wallet({'wallet_name':'Extinct','descriptors':[rows[k] for k in sorted(rows)]})
     ordinary.append({'id':checked['id'],'name':'Extinct','raw':checked['raw'],'private_keys_enabled':False,'signing_only':False,'extinct':True,'address_labels':labels,'subwallets':sorted(names,key=str.casefold)})
     return ordinary
-
-def supersede_children(state,target,group):
-    """Withdraw obsolete per-child queue entries, retaining their actual outcomes."""
-    keys={NodeWalletLoader.descriptor_key(r['desc']) for r in group['raw']['descriptors']}
-    old=set()
-    for row in state['requests'].values():
-        if row.get('kind')!='wallet_transfer' or row.get('direction')!='receive' or row['node_id']!=target:continue
-        descriptors=row['public_wallet']['descriptors'];child={NodeWalletLoader.descriptor_key(r['desc']) for r in descriptors}
-        if child and child<=keys and (child<keys or row['public_wallet']['wallet_name'] not in ('Extinct','Wallaby Extinct')) and all(r['desc'].startswith('addr(') for r in descriptors) and row.get('state')=='pending':old.add(row['transfer_id'])
-    for row in state['requests'].values():
-        if row.get('transfer_id') in old:row.update(superseded_container=True,queue_visible=False,message='Replaced in the current request list by the combined Extinct archive; prior local outcomes remain recorded.')

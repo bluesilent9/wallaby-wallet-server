@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Build 33: stable node identity, changing network routes
 
 The supplied Wallet Server 32 and Agent 28 logs show two separate failures: `peer_changed:22` before profile clearing, then repeated Agent `exchange_sync_revision` failures when the cleared Wallet Server starts again at revision zero. Node refresh reads blockchain status; that is not evidence of complete wallet synchronisation.

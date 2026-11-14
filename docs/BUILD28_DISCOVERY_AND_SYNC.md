@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Wallet Server Build 28 / Agent V2 Build 24
 
 Ownership availability depends on validated public wallet metadata, not completion of all historical input lookups. The server publishes the public catalog and discovery notice first. Complete history is published separately and remains mandatory for balance/tax readiness. Record loading can finish the scan at foreground priority. No partial or missing ledger is presented as zero. Existing reports are invalidated by changed evidence as before.

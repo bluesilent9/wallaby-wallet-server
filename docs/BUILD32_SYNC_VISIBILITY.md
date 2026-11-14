@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Build 32: review lifetime follows the paired request
 
 The supplied V1 Build 31 deployment log records `queued=0 · blockers=preview_expired:22`. All three Agents were present, with zero local exclusions, and all node inventories had been discovered. The Wallet Server incorrectly expired the whole request list because its public review was older than fifteen minutes.

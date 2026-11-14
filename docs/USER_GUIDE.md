@@ -1,3 +1,9 @@
+# Current wallet synchronisation
+
+Server Build 19 uses Agent Build 99's direct wallet discovery. Pair the Agents directly and select/review receiving on the receiving Agent. Wallet Server no longer schedules routine wallet offers or retries, including restoration copy transfers. Explicit archive, rename, extinction and policy requests still originate here and require their existing local Agent approvals. See [Agent-owned sync](AGENT_OWNED_SYNC.md).
+
+Earlier release notes below retain historical descriptions; the current architecture above supersedes their Server-owned sync controls.
+
 Build 28: Ownership unlocks after the public wallet list is discovered; the full historical check may continue in Terminal Activity. You can upload records immediately. Balance verification waits for complete history. Extinct synchronisation now appears as one parent with child wallet names; review and authorise it locally on each Agent. If old child denials remain, use Agent Build 24’s local cleanup control; the Wallet Server cannot clear them.
 
 Vault spending: finish a payment arrow to check the source against connected Core nodes. A fully locked vault cannot connect. A wallet with unlocked funds can connect and spend that available portion, with fees reserved from it. Send maximum and manually using the available balance warn when other funds remain locked. These yellow UTC-timestamped notices are immediately read, appear above the diagram and can be deleted from Notifications. A failed node check does not create an unchecked arrow. Final coin selection and Agent review remain authoritative.

@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Public wallet availability — Server Build 6 / Agent Build 70
 
 Agents advertise `wallet_sync_offers_v1` alongside `wallet_transfer`. The Server sends a separate authoritative snapshot:

@@ -29,13 +29,13 @@ class Permissions(Setup):
         req=self.identity(self.b);self.assertIsNone(req['previous']);self.hub.inventories[self.b['node_id']]['wallets']=[];self.receive(self.b,self.response(self.b,req,[policy_id(self.wallet['raw'])]));self.exchange(self.a)
         self.assertFalse(self.hub.read()['requests']);self.assertFalse(self.hub.sync_warnings());self.assertFalse(self.hub.permissions.permits(self.b['node_id'],self.wallet['raw']));self.assertEqual(self.hub.node_summary(self.b['node_id'])['sync_permissions']['disabled'][0]['wallet_name'],self.wallet['name'])
         self.exchange(self.a,[self.item('vault_public',self.vault)]);self.assertFalse(any(p['kind']=='vault_sync' for p in self.exchange(self.b)['proposals']))
-        req=self.poll_request(self.b);self.assertIsNone(req['previous']);self.receive(self.b,self.response(self.b,req,[],2));self.exchange(self.a);self.assertEqual(len(self.hub.read()['requests']),2);self.assertTrue(self.hub.sync_warnings());self.assertTrue(self.hub.permissions.permits(self.b['node_id'],self.wallet['raw']))
+        req=self.poll_request(self.b);self.assertIsNone(req['previous']);self.receive(self.b,self.response(self.b,req,[],2));self.exchange(self.a);self.assertFalse(self.hub.read()['requests']);self.assertFalse(self.hub.sync_warnings());self.assertTrue(self.hub.permissions.permits(self.b['node_id'],self.wallet['raw']))
         saved=self.hub.path.read_text();self.assertNotIn('sync_exclusions',saved);self.assertNotIn('"policies"',saved)
-    def test_wait_for_current_permissions_before_offering_missing_wallet(self):
+    def test_permissions_never_create_server_owned_wallet_offers(self):
         self.hub.inventories[self.b['node_id']]['wallets']=[];self.exchange(self.a);self.assertFalse(self.hub.read()['requests']);self.assertFalse(self.hub.sync_warnings())
-        p=self.identity(self.b);self.receive(self.b,self.response(self.b,p,[]));self.assertEqual(len(self.hub.read()['requests']),2)
-    def test_disabling_withdraws_both_queued_rows_and_warning_without_closing_audit(self):
-        p=self.identity(self.b);self.receive(self.b,self.response(self.b,p,[]));self.hub.inventories[self.b['node_id']]['wallets']=[];self.exchange(self.b,node_info={'ipv6':'fd12::2'},caps=['wallet_transfer']);self.exchange(self.a,node_info={'ipv6':'fd12::1'},caps=['wallet_transfer']);self.assertTrue(self.hub.sync_warnings())
+        p=self.identity(self.b);self.receive(self.b,self.response(self.b,p,[]));self.assertFalse(self.hub.read()['requests'])
+    def test_local_disable_does_not_create_server_queues_or_warnings(self):
+        p=self.identity(self.b);self.receive(self.b,self.response(self.b,p,[]));self.hub.inventories[self.b['node_id']]['wallets']=[];self.exchange(self.b,node_info={'ipv6':'fd12::2'},caps=['wallet_transfer']);self.exchange(self.a,node_info={'ipv6':'fd12::1'},caps=['wallet_transfer']);self.assertFalse(self.hub.sync_warnings())
         p=self.poll_request(self.b);self.receive(self.b,self.response(self.b,p,[policy_id(self.wallet['raw'])],2));self.assertFalse(self.hub.sync_warnings());self.assertTrue(all(not r['queue_visible'] for r in self.hub.read()['requests'].values()));self.assertTrue(all(r['state']=='pending' for r in self.hub.read()['requests'].values()))
     def test_signature_challenge_foreign_identity_revision_and_duplicate_bounds(self):
         p=self.identity(self.b);valid=self.response(self.b,p,[]);bad=copy.deepcopy(valid);bad['challenge']='e'*64

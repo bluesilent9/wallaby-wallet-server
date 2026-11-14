@@ -205,7 +205,7 @@ def group_rows(state,key):
 def group_complete(state,key):
     root=state['requests'][key];rows=group_rows(state,key)
     if root.get('cancel_requested'):return False
-    preserved=any(r['proposal'].get('phase')=='preserve' and r.get('archive_checked') and r['state']=='complete' for r in rows)
+    preserved=any(not r.get('preservation_withdrawn') and r['proposal'].get('phase')=='preserve' and r.get('archive_checked') and r['state']=='complete' for r in rows)
     return preserved and bool(root.get('expected_holders')) and all((latest_delete(rows,node) or {}).get('state')=='complete' for node in root['expected_holders'])
 
 def verify_archive(hub,row):
@@ -235,6 +235,7 @@ def verify_archive(hub,row):
 def latest_phases(rows):
     selected={}
     for r in rows:
+        if r.get('preservation_withdrawn'):continue
         key=(r['node_id'],r['proposal']['phase'],r['proposal']['wallet'])
         if key not in selected or r.get('generation',1)>selected[key].get('generation',1):selected[key]=r
     return list(selected.values())
@@ -270,12 +271,12 @@ def advance(hub):
                     if (latest_delete(rows,node) or {}).get('state')=='complete' and node not in absent:absent.append(node)
             absent=set(hub.read()['requests'][key].get('absent_holders',[]))
             needs_delete=any(latest_delete(rows,o['id']) is None or o['id'] in absent or root.get('dashboard_extinct') and latest_delete(rows,o['id']).get('state')=='denied' for o in options)
-            needs_archive=any(not any(r['node_id']==o['id'] and r['proposal']['phase']=='preserve' and r['proposal']['wallet']==o['wallet'] for r in rows) for o in archive_options(hub))
+            needs_archive=any(not any(not r.get('preservation_withdrawn') and r['node_id']==o['id'] and r['proposal']['phase']=='preserve' and r['proposal']['wallet']==o['wallet'] for r in rows) for o in archive_options(hub))
             from archive_queue import ArchiveQueue
             if not needs_delete and not needs_archive and not ArchiveQueue(hub).needs_retired_disc(root):continue
             preservation=None;verification_error=None
             for row in rows:
-                if row['proposal']['phase']!='preserve' or row['state']!='complete':continue
+                if row.get('preservation_withdrawn') or row['proposal']['phase']!='preserve' or row['state']!='complete':continue
                 try:verified=verify_archive(hub,row)
                 except (ValueError,OSError,KeyError) as exc:
                     verification_error=str(exc)[:1000];continue
@@ -467,12 +468,12 @@ def cancel(hub,user,key,confirmed):
 
 def deliverable(state,key):
     row=state['requests'][key];root=state['requests'].get(row.get('root_hash'),{})
-    if root.get('cancel_requested') or row.get('cancel_requested'):return False
+    if root.get('cancel_requested') or row.get('cancel_requested') or row.get('preservation_withdrawn'):return False
     if row['proposal'].get('version')!=3:return False
     if row['proposal']['phase']=='preserve':return True
     proof=row['proposal'].get('preservation') or {}
     archive=state['requests'].get(proof.get('request_hash'),{})
-    return bool(archive.get('state')=='complete' and archive.get('archive_checked') and archive.get('root_hash')==row.get('root_hash') and archive['proposal']['phase']=='preserve' and archive['proposal']['manifest_hash']==row['proposal']['manifest_hash'] and proof.get('receipt')==archive['result'].get('archive_receipt'))
+    return bool(not archive.get('preservation_withdrawn') and archive.get('state')=='complete' and archive.get('archive_checked') and archive.get('root_hash')==row.get('root_hash') and archive['proposal']['phase']=='preserve' and archive['proposal']['manifest_hash']==row['proposal']['manifest_hash'] and proof.get('receipt')==archive['result'].get('archive_receipt'))
 
 
 def validate_saved(state,ident,row,users):
@@ -510,10 +511,14 @@ def validate_saved(state,ident,row,users):
             if set(target)!={'wallet','public_wallet','private_keys_enabled'} or type(target['private_keys_enabled']) is not bool:raise ValueError('Invalid deletion target metadata.')
             clean_wallet(target['public_wallet'])
         proof=p['preservation'];archive=state['requests'].get((proof or {}).get('request_hash'),{})
-        if not archive or archive.get('root_hash')!=row.get('root_hash') or archive['proposal']['phase']!='preserve' or archive['proposal']['manifest_hash']!=p['manifest_hash'] or archive.get('state')!='complete' or not archive.get('archive_checked') or proof.get('node_id')!=archive['node_id'] or proof.get('archive_wallet')!=archive['proposal']['wallet'] or proof.get('manifest_hash')!=p['manifest_hash'] or proof.get('receipt')!=archive.get('result',{}).get('archive_receipt'):raise ValueError('Deletion has no verified preservation barrier.')
+        if not archive or archive.get('preservation_withdrawn') or archive.get('root_hash')!=row.get('root_hash') or archive['proposal']['phase']!='preserve' or archive['proposal']['manifest_hash']!=p['manifest_hash'] or archive.get('state')!='complete' or not archive.get('archive_checked') or proof.get('node_id')!=archive['node_id'] or proof.get('archive_wallet')!=archive['proposal']['wallet'] or proof.get('manifest_hash')!=p['manifest_hash'] or proof.get('receipt')!=archive.get('result',{}).get('archive_receipt'):raise ValueError('Deletion has no verified preservation barrier.')
     root=state['requests'].get(row.get('root_hash'),{})
     if ('expected_holders' not in root or not root['expected_holders'] and not root.get('node_removal_parked')) or root['proposal']['operation_id']!=p['operation_id'] or root['proposal']['manifest_hash']!=p['manifest_hash']:raise ValueError('Invalid retirement group.')
-    if row.get('cancelled_before_delivery'):
+    if row.get('preservation_withdrawn'):
+        if row['preservation_withdrawn'] is not True or p['phase']!='preserve' or p['delete_wallet'] is not False or not isinstance(row.get('preservation_withdrawn_utc'),str):raise ValueError('Invalid preservation withdrawal.')
+    if row.get('preservation_withdrawn_before_delivery'):
+        if row.get('preservation_withdrawn') is not True or row['state']!='cancelled' or row.get('delivered') or row.get('result'):raise ValueError('Invalid undelivered preservation withdrawal.')
+    elif row.get('cancelled_before_delivery'):
         if row['state']!='cancelled' or row.get('delivered') or not row.get('cancel_requested'):raise ValueError('Invalid undelivered cancellation.')
     elif row['state']!='pending':
         test=copy.deepcopy(row);test['state']='pending';result({'requests':{ident:test}},row['node_id'],row.get('result'))
@@ -526,11 +531,11 @@ def queue_late_archives(hub,key,root,preservation):
     # An existing Extinct container on a newly connected node receives data too.
     for option in archive_options(hub):
         state=hub.read()
-        if any(r['node_id']==option['id'] and r['proposal']['phase']=='preserve' and r['proposal']['wallet']==option['wallet'] for r in group_rows(state,key)):continue
+        if any(not r.get('preservation_withdrawn') and r['node_id']==option['id'] and r['proposal']['phase']=='preserve' and r['proposal']['wallet']==option['wallet'] for r in group_rows(state,key)):continue
         p=proposal(root['retirement_wallet'],root['proposal']['archive_label'],root['proposal']['operation_id'],'preserve',option,root['proposal']['manifest'])
         with hub.edit() as state:
             if state['requests'][key].get('cancel_requested'):return
-            if any(r['node_id']==option['id'] and r['proposal']['phase']=='preserve' and r['proposal']['wallet']==option['wallet'] for r in group_rows(state,key)):continue
+            if any(not r.get('preservation_withdrawn') and r['node_id']==option['id'] and r['proposal']['phase']=='preserve' and r['proposal']['wallet']==option['wallet'] for r in group_rows(state,key)):continue
             state['requests'][digest(p)]=_row(hub,p,option['id'],root['user_id'],root['wallet_id'],key,root['balance_checks'])
 
 
@@ -542,7 +547,7 @@ def latest_delete(rows,node):
 def preservation_live(hub,proof):
     """No stale disconnected receipt releases newly delivered cleanup requests."""
     row=hub.read()['requests'].get((proof or {}).get('request_hash'))
-    if not row or row.get('node_deleted') or row['state']!='complete' or not row.get('archive_checked'):return False
+    if not row or row.get('node_deleted') or row.get('preservation_withdrawn') or row['state']!='complete' or not row.get('archive_checked'):return False
     node=row['node_id'];name=row['proposal']['wallet']
     if not any(o['id']==node and o['wallet']==name for o in archive_options(hub)):return False
     connections=tuple(sorted(k for k,c in hub.registry.connections.items() if c['node_id']==node))

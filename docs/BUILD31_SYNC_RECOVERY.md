@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Build 31: visible stalled reviews and deliberate recovery
 
 The supplied deployment log confirms empty outbound lists while all three nodes were present. Earlier previews and attempts survive service restarts. Expiry, changed frozen endpoints, disabled or unknown Agent permissions and earlier outcomes can correctly withhold a live transfer request; the old UI misleadingly told users to find it on the Agent anyway.

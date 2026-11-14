@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Extinct history discovery — Server Build 18 / Agent Build 97+
 
 The Server is a signalling coordinator. It neither fetches nor forwards history records, raw transactions, proofs or labels for this update. Agents transfer and verify those over their authenticated direct SSH channel using the existing signed wallet transfer review.

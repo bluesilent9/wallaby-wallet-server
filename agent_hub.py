@@ -80,7 +80,7 @@ class AgentHub:
     def node_summary(self,node):
         with self.lock:
             state=self.read();entry=state['nodes'].get(node,{});transfers=self.transfers.summaries(state,node)
-            return {'sync_permissions':self.permissions.summary(node),'ipv6':entry.get('ipv6'),'capabilities':sorted(self.caps.get(node,set())), 'inventory_ready':bool(self.inventories.get(node,{}).get('complete')),'inventory_error':self.inventories.get(node,{}).get('error'),'synchronisation':__import__('sync_routes').summary(self,node,state,transfers),'transfers':transfers,'version':next((c.get('agent_version') for c in self.registry.connections.values() if c['node_id']==node),None)}
+            return {'sync_permissions':self.permissions.summary(node),'ipv6':entry.get('ipv6'),'capabilities':sorted(self.caps.get(node,set())), 'inventory_ready':bool(self.inventories.get(node,{}).get('complete')),'inventory_error':self.inventories.get(node,{}).get('error'),'synchronisation':{'state':'agent_managed','text':'Wallet discovery, source selection, deny lists and receiving approval are managed directly on the Agents.'},'transfers':transfers,'version':next((c.get('agent_version') for c in self.registry.connections.values() if c['node_id']==node),None)}
     def rpc(self,node,method,params=None,wallet=None):
         from wallet_transfers import SynchronisationBusy
         if self.transfers.is_busy(node):raise SynchronisationBusy('Wallet synchronisation is active; node reads resume after both Agents finish.')
@@ -113,10 +113,6 @@ class AgentHub:
                 if historical:
                     if info.get('private_keys_enabled') is not False:raise ValueError('Historical archive must have private keys disabled.')
                     archive_wallets.append(name)
-                    connection=self.registry.connections.get(token,{})
-                    if name in ('Wallaby Extinct','Extinct','extinct_watch') and not self.foreground_active(node) and __import__('extinct_history_sync').supported(connection):
-                        try:extinct_summaries[name]=__import__('extinct_history_sync').validate(self.rpc(node,'wallaby_extinct_summary',[],name))
-                        except ValueError as exc:self.registry.diagnostic_log.append('Wallet sync','Extinct summary unavailable · node='+node[:12]+' · '+str(exc)[:180])
                     if not raw.get('descriptors'):continue
                 checked=clean_wallet(raw)
                 item={'name':name,'signing_only':info['walletname']!=name,'id':checked['id'],'raw':checked['raw'],'private_keys_enabled':info.get('private_keys_enabled') is True,'scanning':bool(info.get('scanning'))}
@@ -131,7 +127,7 @@ class AgentHub:
                     w=child['wallet'];wallets.append(dict(item,id=w['id'],raw=w['raw'],extinct=bool(w.get('extinct')),address_labels=w.get('address_labels',{})))
             with self.lock:
                 if token not in self.registry.connections:return
-                self.inventories[node]={'wallets':wallets,'archive_wallets':archive_wallets,'extinct_summaries':extinct_summaries,'history_checked_at':time.monotonic(),'complete':not unloaded,'loaded_complete':True,'unloaded_wallets':unloaded,'scanned_utc':self.utc(),
+                self.inventories[node]={'wallets':wallets,'archive_wallets':archive_wallets,'wallet_directory':sorted({w['name'] for w in entries}),'extinct_summaries':extinct_summaries,'history_checked_at':time.monotonic(),'complete':not unloaded,'loaded_complete':True,'unloaded_wallets':unloaded,'scanned_utc':self.utc(),
                     **({'error':'Loaded wallets are available. '+str(len(unloaded))+' unloaded wallet folders prevent proving ordinary-wallet absence; Extinct ownership can be checked locally during receiving.'} if unloaded else {})}
             self.inventory_display[node]={'token':token,'inventory':copy.deepcopy(self.inventories[node])}
             signature=(tuple(names),tuple(unloaded))
@@ -149,6 +145,8 @@ class AgentHub:
                     if w.get('archive_id') and w.get('private_keys_enabled'):
                         archives[digest({'archive':w['archive_id'],'policy':sorted(NodeWalletLoader.descriptor_key(r['desc']) for r in w['raw']['descriptors'])})]={'raw':w['raw'],'name':w['name'],'archive_id':w['archive_id']}
                     if not w.get('signing_only') and not w.get('extinct'):known[digest(sorted(NodeWalletLoader.descriptor_key(r['desc']) for r in w['raw']['descriptors']))]={'raw':w['raw'],'name':w['name'],'private_keys_enabled':w['private_keys_enabled']}
+            from retirement_presence import reconcile
+            reconcile(self,node,token)
             from wallet_retirement import advance
             advance(self)
             __import__('wallet_lifecycle').advance_restore(self)
@@ -187,58 +185,8 @@ class AgentHub:
                 result.extend(self.lease(session,node['id'],draft)['exports'])
         return {'exports':result}
     def pair_transfers(self,state):
-        ready={c['node_id']:c for c in list(self.registry.connections.values()) if self.registry.rpc._unique(c)}
-        from policy_accounts import intentional_account
-        setups=list(self.wallet_builder.read()['sessions'].values())
-        active_setups={w['id'] for w in BuilderWorkspace(self.config).read()['workspaces'].values() if w['kind']=='wallet'}
-        monitors=[w for inv in self.inventories.values() for w in inv.get('wallets',[])]
-        monitors += [w for n in state['nodes'].values() for w in n.get('known_wallets',{}).values()]
-        for target in sorted(ready):
-            dest=self.inventories.get(target,{})
-            if not (dest.get('complete') or dest.get('loaded_complete')):continue
-            for source in sorted(ready,key=lambda node:(-sum(len(w['raw']['descriptors']) for w in self.inventories.get(node,{}).get('wallets',[]) if w.get('extinct')),node)):
-                if source==target:continue
-                origin=self.inventories.get(source,{})
-                # Loaded source policies prove availability even if unrelated
-                # folders are unloaded. They do not prove destination absence.
-                loaded_current=(origin.get('loaded_complete') and self.inventory_display.get(source,{}).get('token')==ready[source]['token'] and time.monotonic()-origin.get('history_checked_at',self.inventory_times.get(source,0))<=90)
-                if not origin.get('complete') and not loaded_current:continue
-                from extinct_sync import containers,supersede_children
-                for wallet in containers(origin['wallets']):
-                    from sync_discovery import local_archive_review
-                    if not dest.get('complete') and not (wallet.get('extinct') and local_archive_review(self,target,ready[target],wallet['raw'])):continue
-                    if wallet.get('extinct'):supersede_children(state,target,wallet)
-                    if wallet.get('signing_only'):continue
-                    # An unknown receive preference may delay execution, but
-                    # must not hide non-authorising public discovery.
-                    if not self.permissions.allows_offer(target,wallet['raw']) and 'wallet_sync_offers_v1' not in self.caps.get(target,set()):continue
-                    from wallet_retirement import suppress_sync
-                    if suppress_sync(state,wallet['raw']):continue
-                    try:
-                        from wallet_preview import policies
-                        policies(wallet['raw'],allow_addresses=True)
-                    except ValueError:continue
-                    if any(NodeWalletLoader.descriptor_key(r['desc']) in {NodeWalletLoader.descriptor_key(v['public']['descriptor']) for v in state['vaults'].values()} for r in wallet['raw']['descriptors']):continue
-                    if wallet.get('private_keys_enabled') and intentional_account(wallet['raw'],setups,monitors):continue
-                    policy_keys={NodeWalletLoader.descriptor_key(r['desc']) for r in wallet['raw']['descriptors']}
-                    if any(policy_keys=={NodeWalletLoader.descriptor_key(d) for d in setup.get('descriptors',[])} and (setup.get('workspace_id') in active_setups or setup['state']!='ready' or not set(setup['routes'].values())<=set(setup.get('completion_confirmed',{}))) for setup in setups):continue
-                    from policy_lineage import related
-                    if not wallet.get('extinct') and any(related(self,wallet['raw'],w['raw']) for w in dest['wallets'] if not w.get('signing_only')):continue
-                    if self.transfers.contains([w for w in dest['wallets'] if not w.get('signing_only')],wallet['raw']):continue
-                    # One canonical source per missing public wallet, independent of names/private-key flags.
-                    previous=[r for r in state['requests'].values() if r.get('kind')=='wallet_transfer' and r.get('direction')=='receive' and r['node_id']==target and not r.get('node_deleted') and not r.get('superseded_attempt') and ((policy_keys<={NodeWalletLoader.descriptor_key(d['desc']) for d in r['public_wallet']['descriptors']}) if wallet.get('extinct') else equivalent(r['public_wallet'],wallet['raw']))]
-                    from sync_discovery import missing_again
-                    if any(not missing_again(self,state,ready,source,target,r) for r in previous):continue
-                    ident=digest({'target':target,'descriptor_id':wallet['id']})
-                    if any(r.get('transfer_id')==ident for r in state['requests'].values()):ident=secrets.token_hex(32)
-                    earliest=min((r.get('timestamp',0) for r in wallet['raw']['descriptors']),default=0)
-                    health=self.registry.health.status(ready[target]);requires=bool(not wallet.get('extinct') and health.get('pruned') and (not earliest or not health.get('prune_time') or earliest<health['prune_time']))
-                    for node,peer,direction in ((source,target,'send'),(target,source,'receive')):
-                        key=digest({'transfer':ident,'direction':direction})
-                        if key in state['requests']:continue
-                        state['requests'][key]={'kind':'wallet_transfer','node_id':node,'peer_id':peer,'direction':direction,'transfer_id':ident,'state':'pending','descriptor_id':wallet['id'],'public_wallet':wallet['raw'],'source_has_private_keys':wallet['private_keys_enabled'] and not __import__('policy_accounts').shared(wallet['raw']),'earliest_timestamp':earliest,'requires_blockchain_redownload':requires,'created_utc':self.utc(),**({'subwallets':wallet['subwallets']} if wallet.get('extinct') else {})}
-        from extinct_history_sync import schedule as schedule_history
-        schedule_history(self,state,ready)
+        # Wallet discovery and transfer scope belong to directly paired Agents.
+        return None
     @staticmethod
     def utc():
         from datetime import datetime,timezone
@@ -384,13 +332,9 @@ class AgentHub:
                 elif kind=='sign_result':raise ValueError('Legacy signing broadcasts immediately and cannot complete this partial-signing workflow.')
                 if kind!='wallet_sync_preferences':state['receipts'][receipt]=self.utc()
                 accepted.append(item['id'])
-            if not self.foreground_active():
-                self.pair_transfers(state)
-                self.transfers.schedule_queues(state)
-            transfer_proposals=self.transfers.proposals(state,node)
-            proposals=list(transfer_proposals) if not self.transfers.is_busy(node) else []
-            if self.transfers.is_busy(node):proposals=transfer_proposals
-            else:
+            self.transfers.schedule_queues(state)
+            proposals=[]
+            if not self.transfers.is_busy(node):
                 if not entry.get('ipv6') and 'node_identity' in caps:proposals.append({'kind':'node_identity'})
                 for ident,row in sorted(state['vaults'].items()):
                     related={NodeWalletLoader.descriptor_key(row['public']['descriptor']),NodeWalletLoader.descriptor_key(row['public']['source']['descriptor'])}
@@ -402,7 +346,7 @@ class AgentHub:
                 for key,row in sorted(state['requests'].items()):
                     if row.get('node_deleted') or row['node_id']!=node or row['state']!='pending' or row['kind']=='wallet_transfer':continue
                     if row['kind']=='wallet_retire' and row['proposal'].get('version')==3 and 'wallet_retirement_v3' in caps:
-                        if row.get('cancel_requested'):
+                        if row.get('cancel_requested') or row.get('preservation_withdrawn'):
                             if 'wallet_retirement_cancel_v1' in caps:proposals.append({'kind':'wallet_retire_cancel','version':1,'request_hash':key})
                             continue
                         from wallet_retirement import deliverable
@@ -425,36 +369,18 @@ class AgentHub:
             self.transfers.refresh_nodes.discard(changed);self.inventory_times[changed]=0
             connection=next((c for c in list(self.registry.connections.values()) if c['node_id']==changed),None)
             if connection:threading.Thread(target=self.refresh_inventory,args=(changed,connection['token']),daemon=True).start()
-        queues=[p for p in proposals if p['kind']=='wallet_sync_queue']
-        others=[p for p in proposals if p['kind']!='wallet_sync_queue']
         cancellations=BuilderWorkspace(self.config).proposals(node) if 'builder_cancellation_v1' in caps else []
         archive=[__import__('archive_queue').ArchiveQueue(self).proposal(node)] if 'wallet_archive_queue_v1' in caps else []
         renames=[__import__('wallet_renames').RenameQueue(self).proposal(node)] if 'wallet_rename_v1' in caps else []
         updates=__import__('wallet_policy_updates').proposals(self,node) if 'wallet_policy_refresh_v1' in caps else []
-        notices=[p for p in others if p['kind']=='wallet_transfer_preview']
-        controls=[p for p in others if p['kind']!='wallet_transfer_preview']
         mobile=__import__('mobile_agent_records').proposals(self,node,caps)
-        selected=(cancellations+setup_proposals+renames+archive+updates+queues+controls)[:16]
-        delivered=notices[:16-len(selected)];selected+=delivered;selected+=mobile[:16-len(selected)]
-        if delivered:
-            with self.edit() as state:
-                entry=state['nodes'][node];entry['preview_cursor']=entry.get('preview_cursor',0)+len(delivered)
+        selected=(cancellations+setup_proposals+renames+archive+updates+proposals+mobile)[:16]
         return {'version':1,'accepted':accepted,'proposals':selected}
     def transfer_proposal(self,state,row):
-        peer=row['peer_id'];record=next((c for c in self.registry.connections.values() if c['node_id']==peer),{})
-        proposal={'kind':'wallet_transfer','direction':row['direction'],'transfer_id':row['transfer_id'],'peer':{'node_id':peer,'hostname':record.get('hostname',''),'ipv6':state['nodes'][peer].get('ipv6')},'public_wallet':row['public_wallet'],'source_has_private_keys':row['source_has_private_keys'],'earliest_timestamp':row['earliest_timestamp'],'requires_blockchain_redownload':row['requires_blockchain_redownload'],'preview_challenge':row['challenge'],'node_ipv6':state['nodes'][row['node_id']].get('ipv6')}
-        proposal['transfer_version']=2
-        if row.get('lifecycle_restore'):
-            from wallet_preview import restoration_binding
-            proposal['restoration']=restoration_binding(row['public_wallet'])
-        source=row['node_id'] if row['direction']=='send' else row['peer_id']
-        target=row['peer_id'] if row['direction']=='send' else row['node_id']
-        proposal['transfer_version']=3;proposal['transport']=self.relay.binding(source,target);proposal['node_ipv6']=None;proposal['peer']['ipv6']=None
-        return proposal
+        raise ValueError('Wallet synchronisation is owned by directly paired Agents. Select receiving and approve locally on the Agent.')
     def sync_warnings(self):
-        from wallet_sync_queue import warnings
-        from wallet_retirement import warnings as retirement_warnings
-        return warnings(self)+retirement_warnings(self)
+        from wallet_retirement import warnings
+        return warnings(self)
     def accept_result(self,state,node,kind,p):
         from agent_transactions import accept_result
         return accept_result(self,state,node,kind,p)

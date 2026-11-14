@@ -1,3 +1,5 @@
+> Historical design: Server Build 19 removes routine Server-owned wallet offers, scopes and transfer scheduling. See [Agent-owned sync](AGENT_OWNED_SYNC.md) for the current architecture. Explicit lifecycle requests remain.
+
 # Public sync source storage
 
 Agent Build 93 and Wallet Server Build 13 support optional `source_storage` with exactly `node` or `disc` in signed version-3 wallet previews and version-1 public wallet offers. Normal node previews may omit the field.
