@@ -1,7 +1,7 @@
 """Product version; persisted schemas and signing protocols are independent."""
 VERSION='1'
-BUILD=19
+BUILD=20
 CHANNEL='Development'
-LABEL='V1 Build 19'
+LABEL='V1 Build 20'
 BRAND='Wallaby Wallet'
 PRODUCT='Wallaby Wallet Server'

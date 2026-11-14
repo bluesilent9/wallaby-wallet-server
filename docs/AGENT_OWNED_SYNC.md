@@ -1,4 +1,6 @@
-# Agent-owned wallet discovery — Server Build 19 / Agent Build 99
+# Agent-owned wallet discovery — Server Build 20 / Agent Build 101
+
+Server Build 20 also sends bounded live-source advisory hints, independently of denials and pairing. Those snapshots cannot create, withdraw, restrict, select or approve a direct transfer. See [advisory contract](SYNC_ADVISORY.md).
 
 Routine wallet re-sync is a direct, authenticated peer operation. The Agents inventory their own loaded and unloaded Core wallets and build their own complete public offers. They compare and transfer full wallet data over their paired channel. The receiving Agent owns its deny list, source choice, local review, approval, active-owner conflict checks, imported-history merge and recovery. Wallet Server cannot define a wallet subset, request a transfer, select a source or retry a failed operation.
 

@@ -1,6 +1,6 @@
 # Current wallet synchronisation
 
-Server Build 19 uses Agent Build 99's direct wallet discovery. Pair the Agents directly and select/review receiving on the receiving Agent. Wallet Server no longer schedules routine wallet offers or retries, including restoration copy transfers. Explicit archive, rename, extinction and policy requests still originate here and require their existing local Agent approvals. See [Agent-owned sync](AGENT_OWNED_SYNC.md).
+Server Build 20 uses Agent-owned direct wallet discovery and Agent Build 101's advisory display. Server hints are grey, directly verified usable routes are green and Agent-local denials are red. The Server does not filter snapshots using denial lists. Hints disappear when their source disconnects and the next snapshot arrives. See [advisory snapshots](SYNC_ADVISORY.md). Pair the Agents directly and select/review receiving on the receiving Agent. Wallet Server no longer schedules routine wallet offers or retries, including restoration copy transfers. Explicit archive, rename, extinction and policy requests still originate here and require their existing local Agent approvals. See [Agent-owned sync](AGENT_OWNED_SYNC.md).
 
 Earlier release notes below retain historical descriptions; the current architecture above supersedes their Server-owned sync controls.
 

@@ -333,6 +333,8 @@ class AgentHub:
                 if kind!='wallet_sync_preferences':state['receipts'][receipt]=self.utc()
                 accepted.append(item['id'])
             self.transfers.schedule_queues(state)
+            from wallet_sync_hints import proposal as hint_proposal
+            hints=hint_proposal(self,state,node)
             proposals=[]
             if not self.transfers.is_busy(node):
                 if not entry.get('ipv6') and 'node_identity' in caps:proposals.append({'kind':'node_identity'})
@@ -374,7 +376,7 @@ class AgentHub:
         renames=[__import__('wallet_renames').RenameQueue(self).proposal(node)] if 'wallet_rename_v1' in caps else []
         updates=__import__('wallet_policy_updates').proposals(self,node) if 'wallet_policy_refresh_v1' in caps else []
         mobile=__import__('mobile_agent_records').proposals(self,node,caps)
-        selected=(cancellations+setup_proposals+renames+archive+updates+proposals+mobile)[:16]
+        selected=(cancellations+setup_proposals+renames+archive+updates+proposals+mobile)[:16-len(hints)]+hints
         return {'version':1,'accepted':accepted,'proposals':selected}
     def transfer_proposal(self,state,row):
         raise ValueError('Wallet synchronisation is owned by directly paired Agents. Select receiving and approve locally on the Agent.')

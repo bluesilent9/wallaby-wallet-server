@@ -22,7 +22,7 @@ def schedule(transfers,state):
             row['queue_visible']=False
             row['server_sync_retired']=True
     for entry in state['nodes'].values():
-        for field in ('sync_snapshot','sync_offer_snapshot'):
+        for field in ('sync_snapshot',):
             if entry.get(field):
                 entry[field]=[]
                 revision='sync_revision' if field=='sync_snapshot' else 'sync_offer_revision'

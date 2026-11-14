@@ -25,10 +25,10 @@ class AgentOwnedSync(unittest.TestCase):
  def test_missing_wallet_never_creates_server_offer_queue_preview_or_transfer(self):
   with patch.object(self.hub,'pair_transfers',side_effect=AssertionError('Server chose a scope')),patch.object(self.hub,'rpc',side_effect=AssertionError('Server fetched transfer inventory')):
    for _ in range(3):
-    reply=self.exchange();self.assertFalse(any(p['kind'] in ('wallet_transfer','wallet_sync_queue','wallet_sync_offers','wallet_transfer_preview') for p in reply['proposals']))
+    reply=self.exchange();self.assertFalse(any(p['kind'] in ('wallet_transfer','wallet_sync_queue','wallet_transfer_preview') for p in reply['proposals']))
   self.assertFalse(self.hub.read()['requests'])
  def test_old_queues_withdraw_without_mutating_original_proposals_or_outcomes(self):
-  old=self.old();reply=self.exchange();state=self.hub.read();self.assertFalse(any(p['kind'].startswith('wallet_sync') and p['kind']!='wallet_sync_preferences' for p in reply['proposals']));self.assertEqual(state['nodes'][self.f.b['node_id']]['sync_snapshot'],[])
+  old=self.old();reply=self.exchange();state=self.hub.read();self.assertFalse(any(p['kind'].startswith('wallet_sync') and p['kind'] not in ('wallet_sync_preferences','wallet_sync_offers') for p in reply['proposals']));self.assertEqual(state['nodes'][self.f.b['node_id']]['sync_snapshot'],[])
   for k,r in old.items():
    self.assertEqual(state['requests'][k]['proposal'],r['proposal']);self.assertEqual(state['requests'][k]['state'],r['state']);self.assertEqual(state['requests'][k]['frozen_evidence'],r['frozen_evidence']);self.assertFalse(state['requests'][k]['queue_visible'])
  def test_completed_old_operations_remain_byte_exact(self):
