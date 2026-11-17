@@ -131,12 +131,12 @@ class Session:
         balance_refresh_required=ready and needs_verification(saved_balance,report_signature(data,descriptors['fingerprint']),data)
         node_ready=bool(self.node_registry and self.node_registry.ready_for_builders())
         available=ready or bool(saved_balance) or bool(assignments_ready and saved_inventory)
-        if available and self.status not in {'running','waiting'}:
+        if user and (self.mode!='cgt' or self.status not in {'running','waiting'}):
             generation,saved=ReportStore(self.preferences_path).load(self.user_id,report_signature(data,descriptors['fingerprint']),self.report_generation if self.report_context==context and self.report else None,allow_saved=True)
             if isinstance(saved,dict):self.report=saved;self.report_context=context
             elif saved is None:self.report=None;self.report_context=None
             self.report_generation=generation
-        report_ready=available and self.report is not None
+        report_ready=self.report is not None
         return {'login_page':'ownership' if assignment_required else 'balances','ownership_assignment_required':assignment_required,'ownership_available':available,'balances_available':bool(saved_balance),'saved_data':bool(available and (not balance_current or not node_ready)), 'descriptor_history_ready':ledger_ready,'address_revision':__import__('address_destinations').AddressDestinations(self.preferences_path).revision(),'discovery_revision':descriptors['revision'],'node_ready':node_ready,'balances_ready':balance_current,'balance_refresh_required':bool(balance_refresh_required),'descriptors_ready':descriptors['ready'],'bitaroo_as_of_date':self.bitaroo_as_of_date,'ownership_completed_utc':self.ownership_completed_utc,'activity_started':bool(user) and self.activity_started,'process_active':bool(user) and (self.status in {'running','waiting'} or self.active_operations>0 or self.rpc_broker is not None and self.rpc_broker.pending(self.session_dir.name+':'+self.user_id)),'ownership_assignments_ready':assignments_ready,'builder_history_refreshing':assignments_ready and not ready,'ownership_ready':ready,'templates_ready':assignments_ready,'report_ready':report_ready,'report_generation':self.report_generation,'ownership_context':context}
     def invalidate_transaction_refresh(self):
         self.transaction_refresh_context=None;self.transaction_refresh_scanned=False
@@ -287,8 +287,10 @@ class Session:
             if self.node_registry:__import__('retired_catalog').prepare(self.preferences_path,self.node_registry.hub)
             snapshot=FamilyStore(self.preferences_path).snapshot()
             access=self.access(snapshot)
-            if mode in ('cgt','balances') and not access['ownership_ready']:raise ValueError(MISSING_OWNERSHIP)
-            if mode=='cgt' and not access['balances_ready']:raise ValueError('Verify Balances in Ownership before building a CGT report.')
+            if mode=='balances' and not access['ownership_ready']:raise ValueError(MISSING_OWNERSHIP)
+            if mode=='cgt':
+                if not access['node_ready']:raise ValueError('Connect a fully synchronised Bitcoin Core node through Wallaby Agent first.')
+                if access['ownership_assignment_required']:raise ValueError(MISSING_OWNERSHIP)
             self.run_context=access['ownership_context']
             self.run_refresh=False
             descriptor_store=DescriptorStore(self.preferences_path)
@@ -644,6 +646,7 @@ def create_server(state_dir,port=0,preferences_path=None,max_sessions=32,idle_se
                             if session.current_page=='ownership':workflows.read_discovery(session.user_id)
                             notice_snapshot=FamilyStore(session.preferences_path).snapshot()
                             workflows.sync_run_warning(session.user_id,params.get('local_date',[''])[0],params.get('timezone',['UTC'])[0],params.get('page',[''])[0],notice_snapshot)
+                            workflows.sync_node_warning(session.user_id,sessions.nodes.ready_for_builders(),session.current_page)
                             workflows.sync_bitaroo_warnings(session.user_id,notice_snapshot,params.get('local_date',[''])[0],params.get('timezone',['UTC'])[0],session.current_page)
                             if params.get('page',[''])[0]=='nodes':sessions.nodes.notifications(session.user_id,read=True)
                             return self.json(self.notices(session))

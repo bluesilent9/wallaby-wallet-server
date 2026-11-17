@@ -60,21 +60,20 @@ function route(){let requested=location.hash.replace(/^#\//,'');requested=({dash
 const lockedRoutes=new Set(['setup','totals','history','balances','builder','templates']);
 function walletCreationActive(){return !!(family.builders?.wallet?.workspace||(window.WallabyWorkspace?.active?.kind==='wallet'&&window.WallabyWorkspace.active.root?.isConnected&&window.WallabyWorkspace.active.workspace));}
 function backgroundJob(){return ['inventory','balances','descriptors'].includes(jobMode);}
-function jobBlocks(name){return jobActive()&&lockedRoutes.has(name)&&!(backgroundJob()&&(['builder','templates'].includes(name)||family.ownership_available&&['balances','totals','history'].includes(name)));}
+function jobBlocks(name){return jobActive()&&lockedRoutes.has(name)&&!(backgroundJob()&&(['setup','totals','history','builder','templates'].includes(name)||family.ownership_available&&name==='balances'));}
 function jobActive(){return ['running','waiting','uploading'].includes(status);}
 function lockReason(name){
  if(family.user&&family.builders?.wallet?.workspace?.renewal&&!['walletbuilder','builder','balances','addresses','admin','mobiles','nodes','notifications','activity'].includes(name))return 'Complete or cancel the linked vault policy in Wallet Builder first.';
 if(!offline){
  if(!family.user&&name!=='admin')return 'Select a user in Administration first.';
  if(name==='ownership'&&!family.ownership_assignment_required&&!family.descriptors_ready&&!family.ownership_available)return 'Waiting for automatic wallet discovery from a connected node.';
- if(name==='vaults'&&!family.ownership_available)return 'Complete Ownership to unlock Vaults.';
+
  if(name==='notifications'&&!noticeData.notifications.length)return 'There are no notifications';
- if(['walletbuilder','builder','templates'].includes(name)&&!family.node_ready&&!(name==='walletbuilder'&&walletCreationActive()||name==='builder'&&family.builders?.wallet?.workspace?.renewal))return 'Connect a fully synchronised Bitcoin Core node through Wallaby Agent to unlock this page.';
+ if(['vaults','setup','walletbuilder','builder','templates'].includes(name)&&!family.node_ready&&!(name==='walletbuilder'&&walletCreationActive()||name==='builder'&&family.builders?.wallet?.workspace?.renewal))return 'Connect a fully synchronised Bitcoin Core node through Wallaby Agent to unlock this page.';
  if(['builder','templates'].includes(name)&&!family.builders?.transaction?.workspace&&!family.templates_ready)return 'Complete Ownership and save all assignments first';
  if(name==='salary'&&!family.balance_report)return 'Verify Balances in Ownership to unlock Salary Builder.';
  if(name==='addresses'&&!family.ownership_available)return 'Complete Ownership Run and complete all ownership assignments to unlock the Address Book';
- if(name==='setup'&&family.ownership_available&&!family.balances_available)return 'Verify Balances in Ownership before building a CGT report.';
- if(name==='setup'&&!family.ownership_available)return 'Complete Ownership and save all assignments first';
+ if(name==='setup'&&family.ownership_assignment_required)return 'Assign the newly discovered wallets in Ownership first.';
  if(name==='activity'&&!terminalActive())return 'Terminal Activity is available while a process is running. Save session logs in Administration.';
 }
 if(name==='balances'&&!offline&&!family.balance_report&&family.ownership_assignment_required)return 'Verify Balances in Ownership to unlock this page.';
@@ -153,12 +152,16 @@ async function requestApi(path,options={}){
 }
 async function post(path,data){const result=await(await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})).json();if(path==='/api/auth/finish'&&result.session_token){token=result.session_token;try{sessionStorage.setItem('wallaby-session-v1-build1',token);}catch{}delete result.session_token;}return result;}
 function updateOwnershipWarning(){
- const banner=$('#ownership-warning'),relevant=['history','setup','totals','balances','builder','vaults'].includes(route());
- const warning=noticeData.notifications.find(n=>n.kind==='run_freshness');
- banner.hidden=applicationClosed||offline||!family.user||!relevant||!warning;
+ const banner=$('#ownership-warning'),page=route(),cgt=['history','setup','totals'].includes(page);
+ const warning=cgt?noticeData.notifications.find(n=>n.kind==='run_freshness'&&n.run_kind==='cgt'):null;
+ const disconnected=!family.node_ready&&['history','setup','totals','balances','builder','vaults'].includes(page);
+ banner.hidden=applicationClosed||offline||!family.user||(!warning&&!disconnected);
  banner.classList.toggle('overdue',warning?.severity==='red');
- if(warning){banner.querySelector('span').textContent=warning.text;const link=banner.querySelector('a');link.href='#/'+warning.target;link.textContent=warning.target==='ownership'?'Open Ownership':'Open CGT Report';banner.title=warning.age_days+' local calendar days since the completed '+(warning.run_kind==='ownership'?'Ownership process':'CGT Report');}
+ const link=banner.querySelector('a');link.hidden=!!warning&&!family.node_ready;
+ if(warning){banner.querySelector('span').textContent=warning.text;link.href='#/setup';link.textContent='Open CGT Report';banner.title='Last successfully completed CGT report';}
+ else if(disconnected){banner.querySelector('span').textContent='Node not connected. Data may be out of date.';link.href='#/nodes';link.textContent='Open Nodes';banner.title='';}
 }
+
 function updateHeader(){revealActiveNavigation();updateNotificationDots();updateOwnershipWarning();const profile=$('#current-profile');profile.hidden=offline;profile.disabled=!family.user;profile.replaceChildren(WallabyFamily.avatar(el,family.user||{name:'No user',colour:'neutral',gender:'male'}),el('span',{},family.user?.name||'No user'));profile.title=family.user?'Administration':'No user';profile.setAttribute('aria-label',family.user?family.user.name+' · Administration':'No user');updateUsers();document.title='Wallaby Wallet · V1 Build 1'+(report?' · '+report.financial_year:'');$('#page-name').textContent=pageNames[route()];for(const b of document.querySelectorAll('[data-route]')){b.classList.toggle('active',b.dataset.route===route());if(offline&&['activity','ownership','addresses','descriptors','builder','templates','notifications','admin','vaults','nodes','mobiles','walletbuilder'].includes(b.dataset.route))b.hidden=true;lockControl(b,b.dataset.route);b.setAttribute('aria-current',b.dataset.route===route()?'page':'false');}const banner=$('#run-banner');banner.hidden=offline||!family.user||!jobActive();banner.classList.toggle('needs-answer',status==='waiting');banner.textContent=status==='waiting'?'Your input is needed · Open Terminal Activity to answer the question':'Processing your records · Follow progress on Terminal Activity';const activityLink=$('[data-route=activity]');activityLink.classList.toggle('needs-answer',status==='waiting');activityLink.setAttribute('aria-label',status==='waiting'?'Terminal Activity — your input is needed':'Terminal Activity');$('#download-report').hidden=!report;$('#report-badge').hidden=false;$('#report-badge').textContent=report?report.financial_year.slice(0,4)+' - '+(Number(report.financial_year.slice(0,4))+1)+' Financial Year':'No Financial Year loaded';}
 const FEE_REFERENCE_VBYTES=140;
 let feeState={data:null,loading:false,tried:false,error:null};
@@ -283,7 +286,7 @@ const slider=el('input',{id:'matching-window',type:'range',min:0,max:5,step:1,va
 function updateWindow(){const [key,label]=windows[Number(slider.value)];settings.matching_window=key;windowLabel.value=label;slider.setAttribute('aria-valuetext',label);}
 slider.addEventListener('input',updateWindow);updateWindow();
 const matching=el('div',{class:'field matching-window-control'},el('label',{htmlFor:'matching-window'},'Transaction matching tolerance ',windowLabel),slider,el('datalist',{id:'matching-window-options'},...windows.map((w,i)=>el('option',{value:i,label:w[1]}))),el('div',{class:'matching-window-labels','aria-hidden':'true'},...windows.map(w=>el('span',{},w[1]))));
-const form=el('form',{id:'setup-form'},matching,el('div',{class:'family-actions'},el('button',{type:'submit',class:'button primary',id:'run-calculation',disabled:!family.ownership_ready||!family.balances_ready},'Build my report'),button('Review loaded records and ownership','outline',()=>go('ownership'),'wallet')));
+const form=el('form',{id:'setup-form'},matching,el('div',{class:'family-actions'},el('button',{type:'submit',class:'button primary',id:'run-calculation',disabled:!family.node_ready||family.ownership_assignment_required},'Build my report'),button('Review loaded records and ownership','outline',()=>go('ownership'),'wallet')));
 form.addEventListener('submit',e=>{e.preventDefault();startJob('cgt');});
 return el('section',{},hero('PERSONAL CAPITAL GAINS',family.user.name+' · CGT report','Your files, ownership and additional settings come from Ownership. All supplied financial years and family users are calculated. Choose the transaction matching tolerance here.'),el('section',{class:'card setup-card'},form));}
 async function uploadInputs(){for(const slot of Object.keys(selected)){

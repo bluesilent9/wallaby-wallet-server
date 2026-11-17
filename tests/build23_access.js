@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const s=fs.readFileSync(path.resolve(process.argv[2],'app.js'),'utf8');
+const start=s.indexOf('const lockedRoutes='),end=s.indexOf('let noticeData=',start);
+let context={offline:false,family:{user:{id:'u'},node_ready:false,ownership_available:true,ownership_assignment_required:false,balance_report:{},templates_ready:true,builders:{}},report:{},status:'idle',jobMode:'inventory',noticeData:{notifications:[]},window:{},terminalActive:()=>false};
+vm.createContext(context);vm.runInContext(s.slice(start,end),context);
+assert(context.lockReason('vaults').includes('fully synchronised'));assert(context.lockReason('setup').includes('fully synchronised'));assert.equal(context.lockReason('history'),'');assert.equal(context.lockReason('totals'),'');
+context.family.node_ready=true;assert.equal(context.lockReason('vaults'),'');assert.equal(context.lockReason('setup'),'');context.status='running';assert.equal(context.lockReason('setup'),'');assert.equal(context.lockReason('history'),'');
+context.family.ownership_assignment_required=true;assert(context.lockReason('setup').includes('Assign'));context.status='idle';context.report=null;assert(context.lockReason('history').includes('CGT Report'));
+assert(s.includes('disabled:!family.node_ready||family.ownership_assignment_required'));
+console.log('PASS: Vaults/CGT node locks, saved offline history/totals, background work, genuine assignment and report button controls');

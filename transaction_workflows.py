@@ -42,8 +42,6 @@ class WorkflowStore:
             if json.dumps(state,sort_keys=True)!=before:self._write(state)
     def sync_run_warning(self,user,local_date,zone,page,snapshot=None):
         from run_freshness import warning,PAGES
-        existing=self._read().get('notices',{}).get(user,[])
-        if page not in PAGES and not any(n.get('kind')=='run_freshness' for n in existing):return
         value=warning(self.config,snapshot if snapshot is not None else FamilyStore(self.config).snapshot(),local_date,zone)
         with storage_lock(self.config):
             state=self._read();rows=state['notices'].setdefault(user,[]);before=json.dumps(rows,sort_keys=True)
@@ -51,7 +49,15 @@ class WorkflowStore:
             rows[:]=[n for n in rows if n.get('kind')!='run_freshness']
             if value:
                 same=previous and previous.get('run_kind')==value['run_kind'] and previous.get('run_stamp')==value['run_stamp']
-                rows.append(dict(value,id=previous['id'] if same else uuid.uuid4().hex,created_utc=previous['created_utc'] if same else datetime.now(timezone.utc).isoformat()))
+                rows.append(dict(value,id=previous['id'] if same else uuid.uuid4().hex,created_utc=previous['created_utc'] if same else datetime.now(timezone.utc).isoformat(),read=page in PAGES or bool(same and previous.get('read'))))
+            if json.dumps(rows,sort_keys=True)!=before:self._write(state)
+    def sync_node_warning(self,user,node_ready,page):
+        with storage_lock(self.config):
+            state=self._read();rows=state['notices'].setdefault(user,[]);before=json.dumps(rows,sort_keys=True)
+            old=next((n for n in rows if n.get('kind')=='node_unavailable'),None)
+            rows[:]=[n for n in rows if n.get('kind')!='node_unavailable']
+            if not node_ready:
+                rows.append({'id':old['id'] if old else uuid.uuid4().hex,'kind':'node_unavailable','target':'nodes','text':'Node not connected. Data may be out of date.','severity':'yellow','dismissible':False,'created_utc':old['created_utc'] if old else datetime.now(timezone.utc).isoformat(),'read':page in ('history','setup','totals','balances','builder','vaults','nodes','notifications') or bool(old and old.get('read'))})
             if json.dumps(rows,sort_keys=True)!=before:self._write(state)
     def discovered(self,users,wallet_ids,reading=()):
         from preferences import resource_id

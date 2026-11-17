@@ -182,9 +182,12 @@ def run(config):
                 finally:client.close()
             chain,reused=shared_history(config['preferences'],config['descriptor_catalog'],discover,force=settings.get('refresh_descriptor_history',False),require_existing=False,allow_stale=True)
             print(('Reusing shared descriptor blockchain history from ' if reused else 'Descriptor blockchain history refreshed at ')+chain['scanned_utc'])
+        elif mode=='cgt':
+            client=HistoryClient(core,str(Path(config['cache']).with_name('descriptor-chain.sqlite3')))
+            try:chain,_=shared_history(config['preferences'],config['descriptor_catalog'],lambda:scan(config['descriptor_catalog'],client),require_existing=False)
+            finally:client.close()
         else:
             chain=saved_history(config['preferences'],config['descriptor_catalog'])
-            if chain['catalog_fingerprint']!=config['descriptor_fingerprint']:raise ValueError('Wallet descriptors changed. Run Ownership again before CGT.')
         descriptor_rows=wallet_rows(core,chain)
         chain_client=ChainClient(core)
         historical_rows={}  # All historical wallet groups are reconstructed from Core's labelled addr() policies.
